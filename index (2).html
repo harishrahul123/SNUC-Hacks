@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -549,18 +550,9 @@ function parseSMSBalance(text) {
 }
 
 // ─── SAMPLE DATA ──────────────────────────────────────────────────────────────
-const SAMPLE_OBLIGATIONS = [
-  { id: 1, name: 'Staff Payroll', category: 'payroll', amount: 45000, dueDate: new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10), vendor: 'Employees', flexible: false, penalty: 'Legal risk' },
-  { id: 2, name: 'GST Filing', category: 'tax', amount: 12000, dueDate: new Date(Date.now() + 4 * 86400000).toISOString().slice(0, 10), vendor: 'GSTN Portal', flexible: false, penalty: 'Interest + penalty' },
-  { id: 3, name: 'Office Rent', category: 'rent', amount: 28000, dueDate: new Date(Date.now() + 6 * 86400000).toISOString().slice(0, 10), vendor: 'PropCo Realty', flexible: true, penalty: 'Late fee' },
-  { id: 4, name: 'Cloud Infra (AWS)', category: 'utility', amount: 8500, dueDate: new Date(Date.now() + 10 * 86400000).toISOString().slice(0, 10), vendor: 'Amazon Web Services', flexible: true, penalty: 'Service pause' },
-  { id: 5, name: 'Supplier Invoice', category: 'supplier', amount: 31000, dueDate: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10), vendor: 'RawMat Industries', flexible: true, penalty: 'Relationship risk' },
-];
+const SAMPLE_OBLIGATIONS = [];
 
-const SAMPLE_RECEIVABLES = [
-  { id: 1, from: 'Acme Corp', amount: 55000, expectedDate: new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10), status: 'confirmed' },
-  { id: 2, from: 'NovaTech Ltd', amount: 30000, expectedDate: new Date(Date.now() + 12 * 86400000).toISOString().slice(0, 10), status: 'pending' },
-];
+const SAMPLE_RECEIVABLES = [];
 
 // ─── TOAST SYSTEM ─────────────────────────────────────────────────────────────
 function ToastContainer({ toasts }) {
@@ -2475,7 +2467,7 @@ function App() {
   const [currentUser, setCurrentUser] = useState(() => getSession());
   const [page, setPage] = useState('dashboard');
   const [apiKey, setApiKey] = useState('');
-  const [balance, setBalance] = useState(62450);
+  const [balance, setBalance] = useState(0);
   const [obligations, setObligations] = useState(SAMPLE_OBLIGATIONS);
   const [receivables, setReceivables] = useState(SAMPLE_RECEIVABLES);
   const [actions, setActions] = useState([]);
