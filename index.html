@@ -1,0 +1,2068 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PocketCFO — Smart Cash Flow Intelligence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #0a0c0f;
+    --surface: #111418;
+    --surface2: #181c22;
+    --border: #1e2530;
+    --border2: #252d3a;
+    --accent: #00e5a0;
+    --accent2: #0091ff;
+    --danger: #ff4757;
+    --warn: #ffa502;
+    --text: #e8edf5;
+    --text2: #7a8799;
+    --text3: #3d4a5c;
+    --card-shadow: 0 2px 24px rgba(0,0,0,0.4);
+    --glow: 0 0 32px rgba(0,229,160,0.08);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  body::before {
+    content: '';
+    position: fixed;
+    top: -200px; left: -200px;
+    width: 600px; height: 600px;
+    background: radial-gradient(circle, rgba(0,229,160,0.04) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+  #root { position: relative; z-index: 1; }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
+
+  /* LAYOUT */
+  .app { display: flex; min-height: 100vh; }
+  .sidebar {
+    width: 220px; min-height: 100vh; background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; padding: 24px 0;
+    position: fixed; top: 0; left: 0; z-index: 100;
+  }
+  .main { margin-left: 220px; flex: 1; padding: 32px; min-height: 100vh; }
+
+  .logo {
+    font-family: 'Syne', sans-serif;
+    font-size: 18px; font-weight: 800;
+    color: var(--text); padding: 0 20px 28px;
+    border-bottom: 1px solid var(--border);
+    letter-spacing: -0.5px;
+  }
+  .logo span { color: var(--accent); }
+
+  .nav { padding: 16px 0; flex: 1; }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 20px; cursor: pointer;
+    font-size: 13px; font-weight: 500; color: var(--text2);
+    border-left: 2px solid transparent;
+    transition: all 0.15s;
+  }
+  .nav-item:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+  .nav-item.active { color: var(--accent); border-left-color: var(--accent); background: rgba(0,229,160,0.05); }
+  .nav-item .icon { font-size: 15px; width: 18px; text-align: center; }
+
+  .api-key-section { padding: 16px 20px; border-top: 1px solid var(--border); }
+  .api-key-section label { font-size: 10px; color: var(--text3); font-family: 'DM Mono', monospace; letter-spacing: 1px; text-transform: uppercase; display: block; margin-bottom: 6px; }
+  .api-key-input {
+    width: 100%; background: var(--bg); border: 1px solid var(--border2);
+    border-radius: 6px; padding: 7px 10px; color: var(--text2);
+    font-size: 11px; font-family: 'DM Mono', monospace;
+    outline: none; transition: border 0.15s;
+  }
+  .api-key-input:focus { border-color: var(--accent); }
+
+  /* PAGE HEADER */
+  .page-header { margin-bottom: 28px; }
+  .page-title { font-family: 'Syne', sans-serif; font-size: 26px; font-weight: 700; letter-spacing: -0.5px; }
+  .page-sub { color: var(--text2); font-size: 13px; margin-top: 4px; }
+
+  /* CARDS */
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px;
+    box-shadow: var(--card-shadow);
+  }
+  .card-title {
+    font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 700;
+    color: var(--text3); letter-spacing: 1.5px; text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+
+  /* GRID */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+
+  /* STAT CARDS */
+  .stat-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px;
+  }
+  .stat-label { font-size: 11px; color: var(--text3); font-family: 'DM Mono', monospace; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px; }
+  .stat-value { font-family: 'Syne', sans-serif; font-size: 28px; font-weight: 700; letter-spacing: -1px; }
+  .stat-value.green { color: var(--accent); }
+  .stat-value.red { color: var(--danger); }
+  .stat-value.warn { color: var(--warn); }
+  .stat-sub { font-size: 12px; color: var(--text2); margin-top: 4px; }
+
+  /* RUNWAY BAR */
+  .runway-bar { height: 6px; background: var(--border); border-radius: 3px; margin-top: 10px; overflow: hidden; }
+  .runway-fill { height: 100%; border-radius: 3px; transition: width 0.6s ease; }
+
+  /* BUTTONS */
+  .btn {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 9px 16px; border-radius: 8px; font-size: 13px;
+    font-weight: 500; cursor: pointer; border: none; transition: all 0.15s;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .btn-primary { background: var(--accent); color: #000; }
+  .btn-primary:hover { background: #00ffb2; transform: translateY(-1px); }
+  .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border2); }
+  .btn-secondary:hover { background: var(--border); }
+  .btn-danger { background: rgba(255,71,87,0.15); color: var(--danger); border: 1px solid rgba(255,71,87,0.3); }
+  .btn-danger:hover { background: rgba(255,71,87,0.25); }
+  .btn-sm { padding: 6px 11px; font-size: 12px; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none !important; }
+
+  /* TABLE */
+  .table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .table th { text-align: left; padding: 10px 12px; color: var(--text3); font-size: 10px; letter-spacing: 1px; text-transform: uppercase; font-family: 'DM Mono', monospace; border-bottom: 1px solid var(--border); font-weight: 500; }
+  .table td { padding: 12px 12px; border-bottom: 1px solid var(--border); color: var(--text2); vertical-align: middle; }
+  .table tr:last-child td { border-bottom: none; }
+  .table tr:hover td { background: rgba(255,255,255,0.02); }
+
+  /* BADGES */
+  .badge { display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 20px; font-size: 10px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; font-family: 'DM Mono', monospace; }
+  .badge-green { background: rgba(0,229,160,0.12); color: var(--accent); }
+  .badge-red { background: rgba(255,71,87,0.12); color: var(--danger); }
+  .badge-warn { background: rgba(255,165,2,0.12); color: var(--warn); }
+  .badge-blue { background: rgba(0,145,255,0.12); color: var(--accent2); }
+  .badge-gray { background: rgba(122,135,153,0.12); color: var(--text2); }
+
+  /* UPLOAD ZONE */
+  .upload-zone {
+    border: 1.5px dashed var(--border2); border-radius: 12px;
+    padding: 40px 20px; text-align: center; cursor: pointer;
+    transition: all 0.2s; background: var(--surface);
+  }
+  .upload-zone:hover, .upload-zone.drag { border-color: var(--accent); background: rgba(0,229,160,0.04); }
+  .upload-zone .icon { font-size: 32px; margin-bottom: 10px; }
+  .upload-zone .title { font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+  .upload-zone .sub { font-size: 12px; color: var(--text3); }
+
+  /* TEXTAREA / INPUT */
+  .textarea, .input {
+    width: 100%; background: var(--bg); border: 1px solid var(--border2);
+    border-radius: 8px; padding: 12px 14px; color: var(--text);
+    font-size: 13px; font-family: 'DM Sans', sans-serif;
+    outline: none; transition: border 0.15s; resize: vertical;
+  }
+  .textarea:focus, .input:focus { border-color: var(--accent); }
+  .input { resize: none; }
+  .select {
+    background: var(--bg); border: 1px solid var(--border2);
+    border-radius: 8px; padding: 9px 14px; color: var(--text);
+    font-size: 13px; font-family: 'DM Sans', sans-serif; outline: none;
+  }
+
+  /* FORM GROUP */
+  .form-group { margin-bottom: 14px; }
+  .form-label { font-size: 11px; color: var(--text2); font-family: 'DM Mono', monospace; letter-spacing: 0.5px; margin-bottom: 5px; display: block; }
+
+  /* AI REASONING BOX */
+  .reasoning-box {
+    background: linear-gradient(135deg, rgba(0,229,160,0.05), rgba(0,145,255,0.03));
+    border: 1px solid rgba(0,229,160,0.2);
+    border-radius: 10px; padding: 16px;
+    font-size: 13px; line-height: 1.7; color: var(--text2);
+    white-space: pre-wrap;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .reasoning-box .cot-label {
+    font-size: 10px; color: var(--accent); font-family: 'DM Mono', monospace;
+    letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px; display: block;
+  }
+
+  /* TABS */
+  .tabs { display: flex; gap: 2px; background: var(--surface2); border-radius: 10px; padding: 3px; margin-bottom: 20px; width: fit-content; }
+  .tab { padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; color: var(--text2); transition: all 0.15s; }
+  .tab.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 8px rgba(0,0,0,0.3); }
+
+  /* TIMELINE */
+  .timeline { position: relative; padding-left: 20px; }
+  .timeline::before { content: ''; position: absolute; left: 6px; top: 0; bottom: 0; width: 1px; background: var(--border); }
+  .timeline-item { position: relative; padding-bottom: 16px; }
+  .timeline-dot { position: absolute; left: -17px; top: 3px; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--bg); }
+  .timeline-date { font-size: 10px; color: var(--text3); font-family: 'DM Mono', monospace; margin-bottom: 3px; }
+  .timeline-content { font-size: 13px; color: var(--text2); }
+  .timeline-amount { font-weight: 600; }
+
+  /* LOADER */
+  .loader { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* PROGRESS RING */
+  .progress-ring { position: relative; display: inline-flex; align-items: center; justify-content: center; }
+  .progress-ring svg { transform: rotate(-90deg); }
+  .progress-ring .inner { position: absolute; text-align: center; }
+
+  /* TOAST */
+  .toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
+  .toast {
+    background: var(--surface2); border: 1px solid var(--border2);
+    border-radius: 10px; padding: 12px 16px; font-size: 13px;
+    max-width: 320px; box-shadow: var(--card-shadow);
+    animation: slideIn 0.25s ease;
+    display: flex; align-items: flex-start; gap: 10px;
+  }
+  .toast.success { border-color: rgba(0,229,160,0.3); }
+  .toast.error { border-color: rgba(255,71,87,0.3); }
+  @keyframes slideIn { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+  /* CHART BAR */
+  .bar-chart { display: flex; align-items: flex-end; gap: 6px; height: 80px; }
+  .bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; justify-content: flex-end; }
+  .bar { width: 100%; border-radius: 3px 3px 0 0; transition: height 0.4s ease; min-height: 2px; }
+  .bar-label { font-size: 9px; color: var(--text3); font-family: 'DM Mono', monospace; }
+
+  /* EMPTY STATE */
+  .empty { text-align: center; padding: 40px 20px; color: var(--text3); }
+  .empty .icon { font-size: 36px; margin-bottom: 10px; }
+  .empty .title { font-size: 14px; color: var(--text2); margin-bottom: 4px; }
+  .empty .sub { font-size: 12px; }
+
+  /* EMAIL DRAFT */
+  .email-draft { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .email-header { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 4px; }
+  .email-field { font-size: 12px; color: var(--text2); font-family: 'DM Mono', monospace; }
+  .email-field span { color: var(--text3); }
+  .email-body { padding: 16px; font-size: 13px; line-height: 1.7; color: var(--text2); white-space: pre-wrap; }
+
+  /* MODAL OVERLAY */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 500; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .modal { background: var(--surface); border: 1px solid var(--border2); border-radius: 16px; width: 100%; max-width: 560px; max-height: 90vh; overflow-y: auto; }
+  .modal-header { padding: 20px 24px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .modal-title { font-family: 'Syne', sans-serif; font-size: 16px; font-weight: 700; }
+  .modal-body { padding: 20px 24px; }
+  .modal-footer { padding: 16px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 10px; }
+
+  .close-btn { background: none; border: none; color: var(--text3); cursor: pointer; font-size: 18px; line-height: 1; padding: 2px; }
+  .close-btn:hover { color: var(--text); }
+
+  /* PRIORITY TAG */
+  .priority { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; font-family: 'DM Mono', monospace; }
+  .priority.critical { color: var(--danger); }
+  .priority.high { color: var(--warn); }
+  .priority.medium { color: var(--accent2); }
+  .priority.low { color: var(--text3); }
+
+  /* SECTION DIVIDER */
+  .section-gap { margin-bottom: 20px; }
+
+  /* COT STEP */
+  .cot-step { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .cot-step:last-child { border-bottom: none; }
+  .cot-num { width: 22px; height: 22px; border-radius: 50%; background: var(--surface2); border: 1px solid var(--border2); display: flex; align-items: center; justify-content: center; font-size: 10px; font-family: 'DM Mono', monospace; color: var(--accent); flex-shrink: 0; }
+  .cot-text { font-size: 12px; line-height: 1.6; color: var(--text2); }
+
+  @media (max-width: 900px) {
+    .grid-4 { grid-template-columns: 1fr 1fr; }
+    .grid-3 { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 600px) {
+    .sidebar { display: none; }
+    .main { margin-left: 0; padding: 20px; }
+    .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script>
+const { useState, useEffect, useRef, useCallback } = React;
+
+// ─── GROQ API ─────────────────────────────────────────────────────────────────
+async function callGroq(apiKey, messages, systemPrompt = '') {
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model: 'llama-3.1-8b-instant',
+      messages: [
+        ...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []),
+        ...messages
+      ],
+      temperature: 0.3,
+      max_tokens: 2048
+    })
+  });
+  if (!res.ok) throw new Error(`Groq API error: ${res.status} ${await res.text()}`);
+  const data = await res.json();
+  return data.choices[0].message.content;
+}
+
+// ─── DETERMINISTIC ENGINE ──────────────────────────────────────────────────────
+function computeRunway(balance, obligations) {
+  const sorted = [...obligations].sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+  let cash = balance;
+  let days = 0;
+  const today = new Date();
+  for (const o of sorted) {
+    const due = new Date(o.dueDate);
+    const d = Math.max(0, Math.floor((due - today) / 86400000));
+    if (cash < o.amount) return { days, shortfall: o.amount - cash, nextCrisis: o };
+    cash -= o.amount;
+    days = d;
+  }
+  return { days: 90, shortfall: 0, nextCrisis: null };
+}
+
+function prioritizeObligations(obligations, balance) {
+  const PRIORITY_WEIGHTS = { payroll: 5, tax: 4, loan: 4, rent: 4, supplier: 3, utility: 2, other: 1 };
+  let cash = balance;
+  return obligations.map(o => {
+    const today = new Date();
+    const due = new Date(o.dueDate);
+    const daysLeft = Math.floor((due - today) / 86400000);
+    const urgency = daysLeft <= 3 ? 'critical' : daysLeft <= 7 ? 'high' : daysLeft <= 14 ? 'medium' : 'low';
+    const weight = (PRIORITY_WEIGHTS[o.category] || 1) + (urgency === 'critical' ? 3 : urgency === 'high' ? 2 : urgency === 'medium' ? 1 : 0);
+    return { ...o, daysLeft, urgency, weight };
+  }).sort((a, b) => b.weight - a.weight).map(o => {
+    const canPay = cash >= o.amount;
+    if (canPay) cash -= o.amount;
+    return { ...o, canPay, remainingAfter: canPay ? cash : cash };
+  });
+}
+
+function parseSMSBalance(text) {
+  const balMatch = text.match(/(?:balance|bal|avail)[^\d]*([₹$€£]?[\d,]+(?:\.\d{2})?)/i);
+  const crMatch = text.match(/([\d,]+(?:\.\d{2})?)\s*(?:CR|credit|credited)/i);
+  const drMatch = text.match(/([\d,]+(?:\.\d{2})?)\s*(?:DR|debit|debited)/i);
+  return {
+    balance: balMatch ? parseFloat(balMatch[1].replace(/[₹$€£,]/g, '')) : null,
+    credit: crMatch ? parseFloat(crMatch[1].replace(/,/g, '')) : null,
+    debit: drMatch ? parseFloat(drMatch[1].replace(/,/g, '')) : null,
+  };
+}
+
+// ─── SAMPLE DATA ──────────────────────────────────────────────────────────────
+const SAMPLE_OBLIGATIONS = [
+  { id: 1, name: 'Staff Payroll', category: 'payroll', amount: 45000, dueDate: new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10), vendor: 'Employees', flexible: false, penalty: 'Legal risk' },
+  { id: 2, name: 'GST Filing', category: 'tax', amount: 12000, dueDate: new Date(Date.now() + 4 * 86400000).toISOString().slice(0, 10), vendor: 'GSTN Portal', flexible: false, penalty: 'Interest + penalty' },
+  { id: 3, name: 'Office Rent', category: 'rent', amount: 28000, dueDate: new Date(Date.now() + 6 * 86400000).toISOString().slice(0, 10), vendor: 'PropCo Realty', flexible: true, penalty: 'Late fee' },
+  { id: 4, name: 'Cloud Infra (AWS)', category: 'utility', amount: 8500, dueDate: new Date(Date.now() + 10 * 86400000).toISOString().slice(0, 10), vendor: 'Amazon Web Services', flexible: true, penalty: 'Service pause' },
+  { id: 5, name: 'Supplier Invoice', category: 'supplier', amount: 31000, dueDate: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10), vendor: 'RawMat Industries', flexible: true, penalty: 'Relationship risk' },
+];
+
+const SAMPLE_RECEIVABLES = [
+  { id: 1, from: 'Acme Corp', amount: 55000, expectedDate: new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10), status: 'confirmed' },
+  { id: 2, from: 'NovaTech Ltd', amount: 30000, expectedDate: new Date(Date.now() + 12 * 86400000).toISOString().slice(0, 10), status: 'pending' },
+];
+
+// ─── TOAST SYSTEM ─────────────────────────────────────────────────────────────
+function ToastContainer({ toasts }) {
+  return React.createElement('div', { className: 'toast-container' },
+    toasts.map(t => React.createElement('div', { key: t.id, className: `toast ${t.type}` },
+      React.createElement('span', null, t.type === 'success' ? '✓' : '✗'),
+      React.createElement('span', null, t.msg)
+    ))
+  );
+}
+
+// ─── SIDEBAR ──────────────────────────────────────────────────────────────────
+function Sidebar({ page, setPage, apiKey, setApiKey }) {
+  const items = [
+    { id: 'dashboard', label: 'Dashboard', icon: '◈' },
+    { id: 'obligations', label: 'Obligations', icon: '◉' },
+    { id: 'receivables', label: 'Receivables', icon: '◎' },
+    { id: 'transactions', label: 'Transaction History', icon: '⊕' },
+    { id: 'future', label: 'Future', icon: '⊞' },
+    { id: 'actions', label: 'Actions', icon: '◧' },
+  ];
+  return React.createElement('div', { className: 'sidebar' },
+    React.createElement('div', { className: 'logo' }, 'Pocket', React.createElement('span', null, 'CFO')),
+    React.createElement('nav', { className: 'nav' },
+      items.map(i => React.createElement('div', {
+        key: i.id, className: `nav-item ${page === i.id ? 'active' : ''}`,
+        onClick: () => setPage(i.id)
+      },
+        React.createElement('span', { className: 'icon' }, i.icon),
+        i.label
+      ))
+    ),
+    React.createElement('div', { className: 'api-key-section' },
+      React.createElement('label', null, 'GROQ API KEY'),
+      React.createElement('input', {
+        type: 'password', className: 'api-key-input',
+        placeholder: 'gsk_...', value: apiKey,
+        onChange: e => setApiKey(e.target.value)
+      })
+    )
+  );
+}
+
+// ─── DASHBOARD ────────────────────────────────────────────────────────────────
+function Dashboard({ balance, obligations, receivables }) {
+  const prioritized = prioritizeObligations(obligations, balance);
+  const runway = computeRunway(balance, obligations);
+  const totalObl = obligations.reduce((s, o) => s + o.amount, 0);
+  const totalRec = receivables.reduce((s, r) => s + r.amount, 0);
+  const projectedBalance = balance + totalRec - totalObl;
+  const runwayPct = Math.min(100, (runway.days / 90) * 100);
+  const runwayColor = runway.days < 7 ? '#ff4757' : runway.days < 14 ? '#ffa502' : '#00e5a0';
+
+  const upcomingWeek = obligations.filter(o => {
+    const d = Math.floor((new Date(o.dueDate) - new Date()) / 86400000);
+    return d >= 0 && d <= 7;
+  });
+
+  return React.createElement('div', null,
+    React.createElement('div', { className: 'page-header' },
+      React.createElement('div', { className: 'page-title' }, 'Financial Overview'),
+      React.createElement('div', { className: 'page-sub' }, 'Real-time cash position and upcoming obligations')
+    ),
+
+    // KPI STRIP
+    React.createElement('div', { className: 'grid-4 section-gap' },
+      React.createElement('div', { className: 'stat-card' },
+        React.createElement('div', { className: 'stat-label' }, 'Cash Balance'),
+        React.createElement('div', { className: `stat-value ${balance < totalObl ? 'red' : 'green'}` },
+          '₹' + balance.toLocaleString()),
+        React.createElement('div', { className: 'stat-sub' }, 'Available now')
+      ),
+      React.createElement('div', { className: 'stat-card' },
+        React.createElement('div', { className: 'stat-label' }, 'Total Payables'),
+        React.createElement('div', { className: 'stat-value red' }, '₹' + totalObl.toLocaleString()),
+        React.createElement('div', { className: 'stat-sub' }, `${obligations.length} obligations`)
+      ),
+      React.createElement('div', { className: 'stat-card' },
+        React.createElement('div', { className: 'stat-label' }, 'Expected Receivables'),
+        React.createElement('div', { className: 'stat-value', style: { color: '#0091ff' } }, '₹' + totalRec.toLocaleString()),
+        React.createElement('div', { className: 'stat-sub' }, `${receivables.length} invoices`)
+      ),
+      React.createElement('div', { className: 'stat-card' },
+        React.createElement('div', { className: 'stat-label' }, 'Days to Zero'),
+        React.createElement('div', { className: `stat-value ${runway.days < 7 ? 'red' : runway.days < 14 ? 'warn' : 'green'}` },
+          runway.days >= 90 ? '90+' : runway.days),
+        React.createElement('div', { className: 'runway-bar' },
+          React.createElement('div', { className: 'runway-fill', style: { width: runwayPct + '%', background: runwayColor } })
+        )
+      )
+    ),
+
+    React.createElement('div', { className: 'grid-2 section-gap' },
+      // OBLIGATION PRIORITY
+      React.createElement('div', { className: 'card' },
+        React.createElement('div', { className: 'card-title' }, 'Obligation Priority Queue'),
+        React.createElement('table', { className: 'table' },
+          React.createElement('thead', null,
+            React.createElement('tr', null,
+              React.createElement('th', null, 'Obligation'),
+              React.createElement('th', null, 'Due'),
+              React.createElement('th', null, 'Amount'),
+              React.createElement('th', null, 'Status')
+            )
+          ),
+          React.createElement('tbody', null,
+            prioritized.slice(0, 6).map(o =>
+              React.createElement('tr', { key: o.id },
+                React.createElement('td', null,
+                  React.createElement('div', { style: { color: 'var(--text)', fontWeight: 500 } }, o.name),
+                  React.createElement('span', { className: `priority ${o.urgency}` },
+                    o.urgency === 'critical' ? '● ' : o.urgency === 'high' ? '◆ ' : '◇ ',
+                    o.urgency.toUpperCase()
+                  )
+                ),
+                React.createElement('td', null,
+                  React.createElement('span', { style: { fontFamily: 'DM Mono', fontSize: 12 } },
+                    o.daysLeft <= 0 ? 'TODAY' : `${o.daysLeft}d`)
+                ),
+                React.createElement('td', null, React.createElement('span', { style: { fontFamily: 'DM Mono', fontSize: 12 } }, '₹' + o.amount.toLocaleString())),
+                React.createElement('td', null,
+                  React.createElement('span', { className: `badge ${o.canPay ? 'badge-green' : 'badge-red'}` },
+                    o.canPay ? 'CAN PAY' : 'SHORTFALL')
+                )
+              )
+            )
+          )
+        )
+      ),
+
+      // CASH FLOW PROJECTION
+      React.createElement('div', { className: 'card' },
+        React.createElement('div', { className: 'card-title' }, 'Projected Cash Flow (30d)'),
+        CashFlowChart({ balance, obligations, receivables }),
+
+        React.createElement('div', { style: { marginTop: 16 } },
+          React.createElement('div', { className: 'card-title' }, 'This Week\'s Obligations'),
+          upcomingWeek.length === 0
+            ? React.createElement('div', { style: { color: 'var(--text3)', fontSize: 13, padding: '8px 0' } }, 'No obligations due this week')
+            : upcomingWeek.map(o => React.createElement('div', {
+                key: o.id,
+                style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--border)' }
+              },
+                React.createElement('span', { style: { fontSize: 13, color: 'var(--text2)' } }, o.name),
+                React.createElement('span', { style: { fontFamily: 'DM Mono', fontSize: 12, color: 'var(--danger)' } }, '₹' + o.amount.toLocaleString())
+              ))
+        )
+      )
+    ),
+
+    // ALERT BANNER
+    runway.shortfall > 0 && React.createElement('div', {
+      style: {
+        background: 'rgba(255,71,87,0.08)', border: '1px solid rgba(255,71,87,0.3)',
+        borderRadius: 10, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 12
+      }
+    },
+      React.createElement('span', { style: { fontSize: 20 } }, '⚠'),
+      React.createElement('div', null,
+        React.createElement('div', { style: { fontFamily: 'Syne', fontWeight: 700, color: 'var(--danger)', marginBottom: 2 } }, 'Cash Shortfall Detected'),
+        React.createElement('div', { style: { fontSize: 13, color: 'var(--text2)' } },
+          `₹${runway.shortfall.toLocaleString()} shortfall on "${runway.nextCrisis?.name}". Go to Actions for recommendations.`)
+      )
+    )
+  );
+}
+
+function CashFlowChart({ balance, obligations, receivables }) {
+  const days = 30;
+  const points = [];
+  let cash = balance;
+  for (let i = 0; i <= days; i += 3) {
+    const date = new Date(Date.now() + i * 86400000);
+    const oblOnDay = obligations.filter(o => {
+      const d = new Date(o.dueDate);
+      return d >= date && d < new Date(date.getTime() + 3 * 86400000);
+    }).reduce((s, o) => s + o.amount, 0);
+    const recOnDay = receivables.filter(r => {
+      const d = new Date(r.expectedDate);
+      return d >= date && d < new Date(date.getTime() + 3 * 86400000);
+    }).reduce((s, r) => s + r.amount, 0);
+    cash = cash - oblOnDay + recOnDay;
+    points.push({ label: `D${i}`, value: Math.max(0, cash), raw: cash });
+  }
+  const max = Math.max(...points.map(p => p.value), 1);
+
+  return React.createElement('div', { className: 'bar-chart' },
+    points.map((p, i) =>
+      React.createElement('div', { key: i, className: 'bar-wrap', title: `Day ${i * 3}: ₹${p.raw.toLocaleString()}` },
+        React.createElement('div', {
+          className: 'bar',
+          style: {
+            height: Math.max(2, (p.value / max) * 68) + 'px',
+            background: p.raw < 0 ? 'var(--danger)' : p.raw < balance * 0.3 ? 'var(--warn)' : 'var(--accent)',
+            opacity: 0.7 + (i / points.length) * 0.3
+          }
+        }),
+        i % 3 === 0 && React.createElement('div', { className: 'bar-label' }, p.label)
+      )
+    )
+  );
+}
+
+// ─── OBLIGATIONS ──────────────────────────────────────────────────────────────
+function Obligations({ obligations, setObligations, addToast }) {
+  const [showModal, setShowModal] = useState(false);
+  const [form, setForm] = useState({ name: '', category: 'other', amount: '', dueDate: '', vendor: '', flexible: false, penalty: '' });
+
+  const add = () => {
+    if (!form.name || !form.amount || !form.dueDate) { addToast('Fill required fields', 'error'); return; }
+    setObligations(prev => [...prev, { ...form, id: Date.now(), amount: parseFloat(form.amount) }]);
+    setShowModal(false);
+    setForm({ name: '', category: 'other', amount: '', dueDate: '', vendor: '', flexible: false, penalty: '' });
+    addToast('Obligation added', 'success');
+  };
+
+  const remove = (id) => setObligations(prev => prev.filter(o => o.id !== id));
+
+  return React.createElement('div', null,
+    React.createElement('div', { className: 'page-header', style: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' } },
+      React.createElement('div', null,
+        React.createElement('div', { className: 'page-title' }, 'Obligations'),
+        React.createElement('div', { className: 'page-sub' }, 'Manage upcoming payables and commitments')
+      ),
+      React.createElement('button', { className: 'btn btn-primary', onClick: () => setShowModal(true) }, '+ Add Obligation')
+    ),
+
+    React.createElement('div', { className: 'card' },
+      obligations.length === 0
+        ? React.createElement('div', { className: 'empty' },
+            React.createElement('div', { className: 'icon' }, '◉'),
+            React.createElement('div', { className: 'title' }, 'No obligations yet'),
+            React.createElement('div', { className: 'sub' }, 'Add your upcoming payments to get started')
+          )
+        : React.createElement('table', { className: 'table' },
+            React.createElement('thead', null,
+              React.createElement('tr', null,
+                React.createElement('th', null, 'Name'),
+                React.createElement('th', null, 'Category'),
+                React.createElement('th', null, 'Amount'),
+                React.createElement('th', null, 'Due Date'),
+                React.createElement('th', null, 'Days Left'),
+                React.createElement('th', null, 'Flexible'),
+                React.createElement('th', null, 'Penalty'),
+                React.createElement('th', null, '')
+              )
+            ),
+            React.createElement('tbody', null,
+              obligations.map(o => {
+                const days = Math.floor((new Date(o.dueDate) - new Date()) / 86400000);
+                const urgency = days <= 3 ? 'critical' : days <= 7 ? 'high' : days <= 14 ? 'medium' : 'low';
+                return React.createElement('tr', { key: o.id },
+                  React.createElement('td', null, React.createElement('span', { style: { color: 'var(--text)', fontWeight: 500 } }, o.name)),
+                  React.createElement('td', null, React.createElement('span', { className: 'badge badge-blue' }, o.category)),
+                  React.createElement('td', null, React.createElement('span', { style: { fontFamily: 'DM Mono', fontSize: 12 } }, '₹' + o.amount.toLocaleString())),
+                  React.createElement('td', null, React.createElement('span', { style: { fontFamily: 'DM Mono', fontSize: 12 } }, o.dueDate)),
+                  React.createElement('td', null,
+                    React.createElement('span', { className: `priority ${urgency}` },
+                      days <= 0 ? 'TODAY' : `${days}d`)
+                  ),
+                  React.createElement('td', null, React.createElement('span', { className: `badge ${o.flexible ? 'badge-green' : 'badge-red'}` }, o.flexible ? 'YES' : 'NO')),
+                  React.createElement('td', null, React.createElement('span', { style: { fontSize: 12, color: 'var(--text3)' } }, o.penalty || '—')),
+                  React.createElement('td', null,
+                    React.createElement('button', { className: 'btn btn-danger btn-sm', onClick: () => remove(o.id) }, '✕')
+                  )
+                );
+              })
+            )
+          )
+    ),
+
+    showModal && React.createElement('div', { className: 'modal-overlay', onClick: () => setShowModal(false) },
+      React.createElement('div', { className: 'modal', onClick: e => e.stopPropagation() },
+        React.createElement('div', { className: 'modal-header' },
+          React.createElement('div', { className: 'modal-title' }, 'New Obligation'),
+          React.createElement('button', { className: 'close-btn', onClick: () => setShowModal(false) }, '✕')
+        ),
+        React.createElement('div', { className: 'modal-body' },
+          React.createElement('div', { className: 'grid-2' },
+            React.createElement('div', { className: 'form-group' },
+              React.createElement('label', { className: 'form-label' }, 'Name *'),
+              React.createElement('input', { className: 'input', value: form.name, onChange: e => setForm(f => ({ ...f, name: e.target.value })), placeholder: 'e.g. Staff Payroll' })
+            ),
+            React.createElement('div', { className: 'form-group' },
+              React.createElement('label', { className: 'form-label' }, 'Category'),
+              React.createElement('select', {
+                className: 'select', style: { width: '100%' },
+                value: form.category, onChange: e => setForm(f => ({ ...f, category: e.target.value }))
+              },
+                ['payroll', 'tax', 'rent', 'loan', 'supplier', 'utility', 'other'].map(c =>
+                  React.createElement('option', { key: c, value: c }, c.charAt(0).toUpperCase() + c.slice(1))
+                )
+              )
+            ),
+            React.createElement('div', { className: 'form-group' },
+              React.createElement('label', { className: 'form-label' }, 'Amount (₹) *'),
+              React.createElement('input', { className: 'input', type: 'number', value: form.amount, onChange: e => setForm(f => ({ ...f, amount: e.target.value })), placeholder: '0' })
+            ),
+            React.createElement('div', { className: 'form-group' },
+              React.createElement('label', { className: 'form-label' }, 'Due Date *'),
+              React.createElement('input', { className: 'input', type: 'date', value: form.dueDate, onChange: e => setForm(f => ({ ...f, dueDate: e.target.value })) })
+            ),
+            React.createElement('div', { className: 'form-group' },
+              React.createElement('label', { className: 'form-label' }, 'Vendor Name'),
+              React.createElement('input', { className: 'input', value: form.vendor, onChange: e => setForm(f => ({ ...f, vendor: e.target.value })), placeholder: 'Counterparty name' })
+            ),
+            React.createElement('div', { className: 'form-group' },
+              React.createElement('label', { className: 'form-label' }, 'Penalty if Late'),
+              React.createElement('input', { className: 'input', value: form.penalty, onChange: e => setForm(f => ({ ...f, penalty: e.target.value })), placeholder: 'e.g. 2% per month' })
+            )
+          ),
+          React.createElement('div', { className: 'form-group', style: { display: 'flex', alignItems: 'center', gap: 8 } },
+            React.createElement('input', { type: 'checkbox', id: 'flex', checked: form.flexible, onChange: e => setForm(f => ({ ...f, flexible: e.target.checked }) ) }),
+            React.createElement('label', { htmlFor: 'flex', style: { fontSize: 13, color: 'var(--text2)', cursor: 'pointer' } }, 'Payment date is flexible / negotiable')
+          )
+        ),
+        React.createElement('div', { className: 'modal-footer' },
+          React.createElement('button', { className: 'btn btn-secondary', onClick: () => setShowModal(false) }, 'Cancel'),
+          React.createElement('button', { className: 'btn btn-primary', onClick: add }, 'Add Obligation')
+        )
+      )
+    )
+  );
+}
+
+// ─── RECEIVABLES ──────────────────────────────────────────────────────────────
+function Receivables({ receivables, setReceivables, addToast }) {
+  const [showModal, setShowModal] = useState(false);
+  const [form, setForm] = useState({ from: '', amount: '', expectedDate: '', status: 'pending' });
+
+  const add = () => {
+    if (!form.from || !form.amount || !form.expectedDate) { addToast('Fill required fields', 'error'); return; }
+    setReceivables(prev => [...prev, { ...form, id: Date.now(), amount: parseFloat(form.amount) }]);
+    setShowModal(false);
+    setForm({ from: '', amount: '', expectedDate: '', status: 'pending' });
+    addToast('Receivable added', 'success');
+  };
+
+  return React.createElement('div', null,
+    React.createElement('div', { className: 'page-header', style: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' } },
+      React.createElement('div', null,
+        React.createElement('div', { className: 'page-title' }, 'Receivables'),
+        React.createElement('div', { className: 'page-sub' }, 'Track incoming payments and invoices')
+      ),
+      React.createElement('button', { className: 'btn btn-primary', onClick: () => setShowModal(true) }, '+ Add Receivable')
+    ),
+    React.createElement('div', { className: 'card' },
+      receivables.length === 0
+        ? React.createElement('div', { className: 'empty' },
+            React.createElement('div', { className: 'icon' }, '◎'),
+            React.createElement('div', { className: 'title' }, 'No receivables yet')
+          )
+        : React.createElement('table', { className: 'table' },
+            React.createElement('thead', null,
+              React.createElement('tr', null,
+                React.createElement('th', null, 'From'),
+                React.createElement('th', null, 'Amount'),
+                React.createElement('th', null, 'Expected Date'),
+                React.createElement('th', null, 'Days Away'),
+                React.createElement('th', null, 'Status'),
+                React.createElement('th', null, '')
+              )
+            ),
+            React.createElement('tbody', null,
+              receivables.map(r => {
+                const days = Math.floor((new Date(r.expectedDate) - new Date()) / 86400000);
+                return React.createElement('tr', { key: r.id },
+                  React.createElement('td', null, React.createElement('span', { style: { color: 'var(--text)', fontWeight: 500 } }, r.from)),
+                  React.createElement('td', null, React.createElement('span', { style: { fontFamily: 'DM Mono', fontSize: 12, color: 'var(--accent)' } }, '₹' + r.amount.toLocaleString())),
+                  React.createElement('td', null, React.createElement('span', { style: { fontFamily: 'DM Mono', fontSize: 12 } }, r.expectedDate)),
+                  React.createElement('td', null, React.createElement('span', { style: { fontFamily: 'DM Mono', fontSize: 12 } }, `${days}d`)),
+                  React.createElement('td', null, React.createElement('span', { className: `badge ${r.status === 'confirmed' ? 'badge-green' : 'badge-warn'}` }, r.status)),
+                  React.createElement('td', null,
+                    React.createElement('button', { className: 'btn btn-danger btn-sm', onClick: () => setReceivables(prev => prev.filter(x => x.id !== r.id)) }, '✕')
+                  )
+                );
+              })
+            )
+          )
+    ),
+    showModal && React.createElement('div', { className: 'modal-overlay', onClick: () => setShowModal(false) },
+      React.createElement('div', { className: 'modal', onClick: e => e.stopPropagation() },
+        React.createElement('div', { className: 'modal-header' },
+          React.createElement('div', { className: 'modal-title' }, 'New Receivable'),
+          React.createElement('button', { className: 'close-btn', onClick: () => setShowModal(false) }, '✕')
+        ),
+        React.createElement('div', { className: 'modal-body' },
+          React.createElement('div', { className: 'grid-2' },
+            React.createElement('div', { className: 'form-group' },
+              React.createElement('label', { className: 'form-label' }, 'From (Client) *'),
+              React.createElement('input', { className: 'input', value: form.from, onChange: e => setForm(f => ({ ...f, from: e.target.value })), placeholder: 'Client name' })
+            ),
+            React.createElement('div', { className: 'form-group' },
+              React.createElement('label', { className: 'form-label' }, 'Amount (₹) *'),
+              React.createElement('input', { className: 'input', type: 'number', value: form.amount, onChange: e => setForm(f => ({ ...f, amount: e.target.value })) })
+            ),
+            React.createElement('div', { className: 'form-group' },
+              React.createElement('label', { className: 'form-label' }, 'Expected Date *'),
+              React.createElement('input', { className: 'input', type: 'date', value: form.expectedDate, onChange: e => setForm(f => ({ ...f, expectedDate: e.target.value })) })
+            ),
+            React.createElement('div', { className: 'form-group' },
+              React.createElement('label', { className: 'form-label' }, 'Status'),
+              React.createElement('select', {
+                className: 'select', style: { width: '100%' },
+                value: form.status, onChange: e => setForm(f => ({ ...f, status: e.target.value }))
+              },
+                ['pending', 'confirmed', 'overdue'].map(s =>
+                  React.createElement('option', { key: s, value: s }, s.charAt(0).toUpperCase() + s.slice(1))
+                )
+              )
+            )
+          )
+        ),
+        React.createElement('div', { className: 'modal-footer' },
+          React.createElement('button', { className: 'btn btn-secondary', onClick: () => setShowModal(false) }, 'Cancel'),
+          React.createElement('button', { className: 'btn btn-primary', onClick: add }, 'Add Receivable')
+        )
+      )
+    )
+  );
+}
+
+// ─── INGEST ───────────────────────────────────────────────────────────────────
+function Ingest({ apiKey, setObligations, setReceivables, setBalance, addToast }) {
+  const [tab, setTab] = useState('file');
+  const [dragging, setDragging] = useState(false);
+  const [files, setFiles] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [results, setResults] = useState([]);
+  const [manualText, setManualText] = useState('');
+  const fileRef = useRef();
+
+  const processWithGroq = async (content, filename) => {
+    if (!apiKey) throw new Error('Enter your Groq API key in the sidebar');
+    const prompt = `You are a financial document parser. Extract financial data from this document.
+Document: "${filename}"
+Content: ${content.slice(0, 3000)}
+
+Return ONLY valid JSON in this exact format:
+{
+  "type": "bank_statement|invoice|receipt|expense",
+  "balance": number_or_null,
+  "transactions": [{"date":"YYYY-MM-DD","description":"string","amount":number,"type":"credit|debit"}],
+  "obligations": [{"name":"string","amount":number,"dueDate":"YYYY-MM-DD","vendor":"string","category":"payroll|tax|rent|loan|supplier|utility|other","flexible":false,"penalty":"string"}],
+  "receivables": [{"from":"string","amount":number,"expectedDate":"YYYY-MM-DD","status":"pending|confirmed"}],
+  "summary": "1-2 sentence summary"
+}
+Only include arrays that have actual data. Return {} for empty sections.`;
+
+    return await callGroq(apiKey, [{ role: 'user', content: prompt }]);
+  };
+
+  const handleFiles = async (fileList) => {
+    if (!apiKey) { addToast('Enter Groq API key first', 'error'); return; }
+    setLoading(true);
+    const newResults = [];
+    for (const file of fileList) {
+      try {
+        let content = '';
+        if (file.type === 'application/pdf' || file.type.startsWith('image/')) {
+          content = `[File: ${file.name}, Type: ${file.type}, Size: ${(file.size / 1024).toFixed(1)}KB]\nThis is a ${file.type.startsWith('image/') ? 'receipt/invoice image' : 'PDF document'} requiring OCR extraction. Please extract any visible financial data including amounts, dates, vendor names, and transaction details.`;
+        } else {
+          content = await file.text();
+        }
+        const raw = await processWithGroq(content, file.name);
+        let parsed;
+        try { parsed = JSON.parse(raw.replace(/```json\n?|\n?```/g, '').trim()); }
+        catch { parsed = { summary: raw, type: 'unknown' }; }
+        newResults.push({ file: file.name, data: parsed, status: 'success' });
+
+        // Auto-import
+        if (parsed.balance) setBalance(parsed.balance);
+        if (parsed.obligations?.length) setObligations(prev => [...prev, ...parsed.obligations.map((o, i) => ({ ...o, id: Date.now() + i }))]);
+        if (parsed.receivables?.length) setReceivables(prev => [...prev, ...parsed.receivables.map((r, i) => ({ ...r, id: Date.now() + i }))]);
+      } catch (e) {
+        newResults.push({ file: file.name, status: 'error', error: e.message });
+      }
+    }
+    setResults(prev => [...newResults, ...prev]);
+    setLoading(false);
+    addToast(`Processed ${fileList.length} file(s)`, 'success');
+  };
+
+  const handleManual = async () => {
+    if (!manualText.trim()) return;
+    if (!apiKey) { addToast('Enter Groq API key first', 'error'); return; }
+    setLoading(true);
+    try {
+      const raw = await processWithGroq(manualText, 'manual-input.txt');
+      let parsed;
+      try { parsed = JSON.parse(raw.replace(/```json\n?|\n?```/g, '').trim()); }
+      catch { parsed = { summary: raw }; }
+      setResults(prev => [{ file: 'Manual Input', data: parsed, status: 'success' }, ...prev]);
+      if (parsed.balance) setBalance(parsed.balance);
+      if (parsed.obligations?.length) setObligations(prev => [...prev, ...parsed.obligations.map((o, i) => ({ ...o, id: Date.now() + i }))]);
+      if (parsed.receivables?.length) setReceivables(prev => [...prev, ...parsed.receivables.map((r, i) => ({ ...r, id: Date.now() + i }))]);
+      addToast('Data extracted and imported', 'success');
+      setManualText('');
+    } catch (e) {
+      addToast(e.message, 'error');
+    }
+    setLoading(false);
+  };
+
+  return React.createElement('div', null,
+    React.createElement('div', { className: 'page-header' },
+      React.createElement('div', { className: 'page-title' }, 'Ingest Financial Data'),
+      React.createElement('div', { className: 'page-sub' }, 'Upload bank statements, invoices, receipts, or paste raw text')
+    ),
+
+    React.createElement('div', { className: 'tabs' },
+      ['file', 'text'].map(t => React.createElement('div', {
+        key: t, className: `tab ${tab === t ? 'active' : ''}`,
+        onClick: () => setTab(t)
+      }, t === 'file' ? '⊕ File Upload' : '✎ Paste Text'))
+    ),
+
+    tab === 'file' && React.createElement('div', { className: 'section-gap' },
+      React.createElement('div', {
+        className: `upload-zone ${dragging ? 'drag' : ''}`,
+        onClick: () => fileRef.current.click(),
+        onDragOver: e => { e.preventDefault(); setDragging(true); },
+        onDragLeave: () => setDragging(false),
+        onDrop: e => { e.preventDefault(); setDragging(false); handleFiles([...e.dataTransfer.files]); }
+      },
+        React.createElement('div', { className: 'icon' }, '⊕'),
+        React.createElement('div', { className: 'title' }, 'Drop files here or click to browse'),
+        React.createElement('div', { className: 'sub' }, 'Bank statements (CSV/TXT), invoices (PDF), receipts (JPG/PNG)'),
+        React.createElement('input', {
+          ref: fileRef, type: 'file', multiple: true,
+          accept: '.csv,.txt,.pdf,.jpg,.jpeg,.png,.xlsx',
+          style: { display: 'none' },
+          onChange: e => handleFiles([...e.target.files])
+        })
+      )
+    ),
+
+    tab === 'text' && React.createElement('div', { className: 'section-gap' },
+      React.createElement('div', { className: 'form-group' },
+        React.createElement('label', { className: 'form-label' }, 'Paste bank statement, invoice, or any financial text'),
+        React.createElement('textarea', {
+          className: 'textarea', rows: 8,
+          placeholder: 'Paste CSV data, email content, or any financial text here...\n\nExample:\nDate,Description,Debit,Credit,Balance\n2024-01-15,Salary payment,45000,,12500\n2024-01-16,GST Portal,12000,,500',
+          value: manualText, onChange: e => setManualText(e.target.value)
+        })
+      ),
+      React.createElement('button', {
+        className: 'btn btn-primary', onClick: handleManual,
+        disabled: loading || !manualText.trim()
+      },
+        loading ? React.createElement('span', { className: 'loader' }) : null,
+        ' Extract & Import'
+      )
+    ),
+
+    loading && React.createElement('div', { style: { textAlign: 'center', padding: '20px', color: 'var(--text2)', fontSize: 13 } },
+      React.createElement('span', { className: 'loader' }),
+      React.createElement('span', { style: { marginLeft: 8 } }, ' Analyzing with Groq AI...')
+    ),
+
+    results.length > 0 && React.createElement('div', { className: 'card', style: { marginTop: 20 } },
+      React.createElement('div', { className: 'card-title' }, 'Extraction Results'),
+      results.map((r, i) => React.createElement('div', {
+        key: i,
+        style: { padding: '12px 0', borderBottom: '1px solid var(--border)' }
+      },
+        React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: 6 } },
+          React.createElement('span', { style: { fontWeight: 600, color: 'var(--text)', fontSize: 13 } }, r.file),
+          React.createElement('span', { className: `badge ${r.status === 'success' ? 'badge-green' : 'badge-red'}` }, r.status)
+        ),
+        r.status === 'success' && r.data?.summary &&
+          React.createElement('div', { style: { fontSize: 12, color: 'var(--text2)', marginBottom: 6 } }, r.data.summary),
+        r.status === 'success' && React.createElement('div', { style: { display: 'flex', gap: 8, flexWrap: 'wrap' } },
+          r.data?.balance && React.createElement('span', { className: 'badge badge-blue' }, `Balance: ₹${r.data.balance?.toLocaleString()}`),
+          r.data?.obligations?.length && React.createElement('span', { className: 'badge badge-warn' }, `${r.data.obligations.length} obligations imported`),
+          r.data?.receivables?.length && React.createElement('span', { className: 'badge badge-green' }, `${r.data.receivables.length} receivables imported`),
+          r.data?.transactions?.length && React.createElement('span', { className: 'badge badge-gray' }, `${r.data.transactions.length} transactions`)
+        ),
+        r.status === 'error' && React.createElement('div', { style: { fontSize: 12, color: 'var(--danger)' } }, r.error)
+      ))
+    )
+  );
+}
+
+// ─── SMS EXTRACTOR ────────────────────────────────────────────────────────────
+function SMSExtractor({ apiKey, setBalance, setObligations, setReceivables, addToast }) {
+  const [smsText, setSmsText] = useState('');
+  const [results, setResults] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const SAMPLE_SMS = `HDFC Bank: Rs.45,000.00 credited to your a/c XX1234 on 15-01-24 by ACME CORP. Avail Bal: Rs.62,450.00
+SBI: Rs.12,500 debited from a/c XX5678 on 16-01-24. UPI ref: 234567890. Avail Bal: Rs.49,950
+ICICI: Your EMI of Rs.8,200 has been debited on 17-01-24. Loan a/c XX9012. Outstanding: Rs.2,45,600
+Paytm: Rs.3,500 paid to RAWMAT INDUSTRIES on 17-01-24. UPI ID: rawmat@paytm. Ref: 98765432
+AXIS: Salary credit Rs.85,000 on 01-01-24. A/c XX3456. Available balance: Rs.1,02,450`;
+
+  const extract = async () => {
+    if (!smsText.trim()) return;
+    setLoading(true);
+    try {
+      let extracted;
+      if (apiKey) {
+        const prompt = `Extract financial data from these SMS messages. Return ONLY valid JSON:
+{
+  "latestBalance": number_or_null,
+  "transactions": [{"date":"YYYY-MM-DD","description":"string","amount":number,"type":"credit|debit","bank":"string","reference":"string"}],
+  "detectedObligations": [{"name":"string","amount":number,"dueDate":"YYYY-MM-DD","category":"loan|utility|other","vendor":"string","flexible":true}],
+  "insights": ["string"]
+}
+
+SMS Messages:
+${smsText}`;
+        const raw = await callGroq(apiKey, [{ role: 'user', content: prompt }]);
+        try { extracted = JSON.parse(raw.replace(/```json\n?|\n?```/g, '').trim()); }
+        catch { extracted = { insights: [raw] }; }
+      } else {
+        // Deterministic fallback
+        const lines = smsText.split('\n').filter(Boolean);
+        const transactions = [];
+        let latestBalance = null;
+        for (const line of lines) {
+          const parsed = parseSMSBalance(line);
+          if (parsed.balance) latestBalance = parsed.balance;
+          if (parsed.credit) transactions.push({ description: line.slice(0, 50), amount: parsed.credit, type: 'credit' });
+          if (parsed.debit) transactions.push({ description: line.slice(0, 50), amount: parsed.debit, type: 'debit' });
+        }
+        extracted = { latestBalance, transactions, insights: ['Parsed using deterministic rules (no API key)'] };
+      }
+      setResults(extracted);
+      if (extracted.latestBalance) { setBalance(extracted.latestBalance); addToast(`Balance updated: ₹${extracted.latestBalance.toLocaleString()}`, 'success'); }
+      if (extracted.detectedObligations?.length) {
+        setObligations(prev => [...prev, ...extracted.detectedObligations.map((o, i) => ({ ...o, id: Date.now() + i }))]);
+        addToast(`${extracted.detectedObligations.length} obligations detected`, 'success');
+      }
+    } catch (e) { addToast(e.message, 'error'); }
+    setLoading(false);
+  };
+
+  return React.createElement('div', null,
+    React.createElement('div', { className: 'page-header' },
+      React.createElement('div', { className: 'page-title' }, 'SMS Extractor'),
+      React.createElement('div', { className: 'page-sub' }, 'Extract balance and transactions from bank SMS messages')
+    ),
+
+    React.createElement('div', { className: 'grid-2' },
+      React.createElement('div', null,
+        React.createElement('div', { className: 'form-group' },
+          React.createElement('label', { className: 'form-label' }, 'Paste SMS messages (one per line)'),
+          React.createElement('textarea', {
+            className: 'textarea', rows: 12, value: smsText,
+            onChange: e => setSmsText(e.target.value),
+            placeholder: 'Paste your bank SMS messages here...'
+          })
+        ),
+        React.createElement('div', { style: { display: 'flex', gap: 10 } },
+          React.createElement('button', { className: 'btn btn-primary', onClick: extract, disabled: loading || !smsText.trim() },
+            loading ? React.createElement('span', { className: 'loader' }) : '⊞',
+            ' Extract'
+          ),
+          React.createElement('button', {
+            className: 'btn btn-secondary',
+            onClick: () => setSmsText(SAMPLE_SMS)
+          }, 'Load Sample SMS')
+        )
+      ),
+
+      React.createElement('div', null,
+        results ? React.createElement('div', null,
+          results.latestBalance && React.createElement('div', { className: 'stat-card section-gap' },
+            React.createElement('div', { className: 'stat-label' }, 'Detected Balance'),
+            React.createElement('div', { className: 'stat-value green' }, '₹' + results.latestBalance.toLocaleString())
+          ),
+
+          results.transactions?.length > 0 && React.createElement('div', { className: 'card section-gap' },
+            React.createElement('div', { className: 'card-title' }, `Transactions (${results.transactions.length})`),
+            React.createElement('div', { className: 'timeline' },
+              results.transactions.slice(0, 8).map((t, i) =>
+                React.createElement('div', { key: i, className: 'timeline-item' },
+                  React.createElement('div', { className: 'timeline-dot', style: { background: t.type === 'credit' ? 'var(--accent)' : 'var(--danger)' } }),
+                  React.createElement('div', { className: 'timeline-content' },
+                    React.createElement('span', { className: `timeline-amount`, style: { color: t.type === 'credit' ? 'var(--accent)' : 'var(--danger)' } },
+                      (t.type === 'credit' ? '+' : '-') + '₹' + t.amount?.toLocaleString()
+                    ),
+                    React.createElement('span', { style: { color: 'var(--text3)', fontSize: 12, marginLeft: 8 } }, t.description?.slice(0, 40))
+                  )
+                )
+              )
+            )
+          ),
+
+          results.insights?.length > 0 && React.createElement('div', { className: 'reasoning-box' },
+            React.createElement('span', { className: 'cot-label' }, '◈ AI Insights'),
+            results.insights.join('\n')
+          )
+        ) : React.createElement('div', { className: 'empty' },
+          React.createElement('div', { className: 'icon' }, '◫'),
+          React.createElement('div', { className: 'title' }, 'Paste SMS messages to extract data'),
+          React.createElement('div', { className: 'sub' }, 'Works with HDFC, SBI, ICICI, Axis, Paytm and more')
+        )
+      )
+    )
+  );
+}
+
+// ─── TRANSACTION HISTORY (merged Ingest + SMS) ────────────────────────────────
+function TransactionHistory({ apiKey, setObligations, setReceivables, setBalance, addToast }) {
+  const [tab, setTab] = useState('file');
+  const [dragging, setDragging] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [results, setResults] = useState([]);
+  const [manualText, setManualText] = useState('');
+  const [smsText, setSmsText] = useState('');
+  const [smsResults, setSmsResults] = useState(null);
+  const [smsLoading, setSmsLoading] = useState(false);
+  const fileRef = useRef();
+
+  const SAMPLE_SMS = `HDFC Bank: Rs.45,000.00 credited to your a/c XX1234 on 15-01-24 by ACME CORP. Avail Bal: Rs.62,450.00\nSBI: Rs.12,500 debited from a/c XX5678 on 16-01-24. UPI ref: 234567890. Avail Bal: Rs.49,950\nICICI: Your EMI of Rs.8,200 has been debited on 17-01-24. Loan a/c XX9012. Outstanding: Rs.2,45,600\nPaytm: Rs.3,500 paid to RAWMAT INDUSTRIES on 17-01-24. UPI ID: rawmat@paytm. Ref: 98765432\nAXIS: Salary credit Rs.85,000 on 01-01-24. A/c XX3456. Available balance: Rs.1,02,450`;
+
+  const processWithGroq = async (content, filename) => {
+    if (!apiKey) throw new Error('Enter your Groq API key in the sidebar');
+    const prompt = `You are a financial document parser. Extract financial data from this document.\nDocument: "${filename}"\nContent: ${content.slice(0, 3000)}\n\nReturn ONLY valid JSON in this exact format:\n{\n  "type": "bank_statement|invoice|receipt|expense",\n  "balance": number_or_null,\n  "transactions": [{"date":"YYYY-MM-DD","description":"string","amount":number,"type":"credit|debit"}],\n  "obligations": [{"name":"string","amount":number,"dueDate":"YYYY-MM-DD","vendor":"string","category":"payroll|tax|rent|loan|supplier|utility|other","flexible":false,"penalty":"string"}],\n  "receivables": [{"from":"string","amount":number,"expectedDate":"YYYY-MM-DD","status":"pending|confirmed"}],\n  "summary": "1-2 sentence summary"\n}\nOnly include arrays that have actual data. Return {} for empty sections.`;
+    return await callGroq(apiKey, [{ role: 'user', content: prompt }]);
+  };
+
+  const handleFiles = async (fileList) => {
+    if (!apiKey) { addToast('Enter Groq API key first', 'error'); return; }
+    setLoading(true);
+    const newResults = [];
+    for (const file of fileList) {
+      try {
+        let content = '';
+        if (file.type === 'application/pdf' || file.type.startsWith('image/')) {
+          content = `[File: ${file.name}, Type: ${file.type}, Size: ${(file.size / 1024).toFixed(1)}KB]\nThis is a ${file.type.startsWith('image/') ? 'receipt/invoice image' : 'PDF document'} requiring OCR extraction.`;
+        } else { content = await file.text(); }
+        const raw = await processWithGroq(content, file.name);
+        let parsed;
+        try { parsed = JSON.parse(raw.replace(/```json\n?|\n?```/g, '').trim()); }
+        catch { parsed = { summary: raw, type: 'unknown' }; }
+        newResults.push({ file: file.name, data: parsed, status: 'success' });
+        if (parsed.balance) setBalance(parsed.balance);
+        if (parsed.obligations?.length) setObligations(prev => [...prev, ...parsed.obligations.map((o, i) => ({ ...o, id: Date.now() + i }))]);
+        if (parsed.receivables?.length) setReceivables(prev => [...prev, ...parsed.receivables.map((r, i) => ({ ...r, id: Date.now() + i }))]);
+      } catch (e) { newResults.push({ file: file.name, status: 'error', error: e.message }); }
+    }
+    setResults(prev => [...newResults, ...prev]);
+    setLoading(false);
+    addToast(`Processed ${fileList.length} file(s)`, 'success');
+  };
+
+  const handleManual = async () => {
+    if (!manualText.trim() || !apiKey) { addToast('Enter Groq API key and text', 'error'); return; }
+    setLoading(true);
+    try {
+      const raw = await processWithGroq(manualText, 'manual-input.txt');
+      let parsed;
+      try { parsed = JSON.parse(raw.replace(/```json\n?|\n?```/g, '').trim()); }
+      catch { parsed = { summary: raw }; }
+      setResults(prev => [{ file: 'Manual Input', data: parsed, status: 'success' }, ...prev]);
+      if (parsed.balance) setBalance(parsed.balance);
+      if (parsed.obligations?.length) setObligations(prev => [...prev, ...parsed.obligations.map((o, i) => ({ ...o, id: Date.now() + i }))]);
+      if (parsed.receivables?.length) setReceivables(prev => [...prev, ...parsed.receivables.map((r, i) => ({ ...r, id: Date.now() + i }))]);
+      addToast('Data extracted and imported', 'success');
+      setManualText('');
+    } catch (e) { addToast(e.message, 'error'); }
+    setLoading(false);
+  };
+
+  const extractSMS = async () => {
+    if (!smsText.trim()) return;
+    setSmsLoading(true);
+    try {
+      let extracted;
+      if (apiKey) {
+        const prompt = `Extract financial data from these SMS messages. Return ONLY valid JSON:\n{\n  "latestBalance": number_or_null,\n  "transactions": [{"date":"YYYY-MM-DD","description":"string","amount":number,"type":"credit|debit","bank":"string"}],\n  "detectedObligations": [{"name":"string","amount":number,"dueDate":"YYYY-MM-DD","category":"loan|utility|other","vendor":"string","flexible":true}],\n  "insights": ["string"]\n}\n\nSMS Messages:\n${smsText}`;
+        const raw = await callGroq(apiKey, [{ role: 'user', content: prompt }]);
+        try { extracted = JSON.parse(raw.replace(/```json\n?|\n?```/g, '').trim()); }
+        catch { extracted = { insights: [raw] }; }
+      } else {
+        const lines = smsText.split('\n').filter(Boolean);
+        const transactions = [];
+        let latestBalance = null;
+        for (const line of lines) {
+          const parsed = parseSMSBalance(line);
+          if (parsed.balance) latestBalance = parsed.balance;
+          if (parsed.credit) transactions.push({ description: line.slice(0, 50), amount: parsed.credit, type: 'credit' });
+          if (parsed.debit) transactions.push({ description: line.slice(0, 50), amount: parsed.debit, type: 'debit' });
+        }
+        extracted = { latestBalance, transactions, insights: ['Parsed using deterministic rules (no API key)'] };
+      }
+      setSmsResults(extracted);
+      if (extracted.latestBalance) { setBalance(extracted.latestBalance); addToast(`Balance updated: ₹${extracted.latestBalance.toLocaleString()}`, 'success'); }
+      if (extracted.detectedObligations?.length) {
+        setObligations(prev => [...prev, ...extracted.detectedObligations.map((o, i) => ({ ...o, id: Date.now() + i }))]);
+        addToast(`${extracted.detectedObligations.length} obligations detected`, 'success');
+      }
+    } catch (e) { addToast(e.message, 'error'); }
+    setSmsLoading(false);
+  };
+
+  const tabs = ['file', 'text', 'sms'];
+
+  return React.createElement('div', null,
+    React.createElement('div', { className: 'page-header' },
+      React.createElement('div', { className: 'page-title' }, 'Transaction History'),
+      React.createElement('div', { className: 'page-sub' }, 'Import bank statements, invoices, or extract from SMS messages')
+    ),
+
+    React.createElement('div', { className: 'tabs' },
+      tabs.map(t => React.createElement('div', {
+        key: t, className: `tab ${tab === t ? 'active' : ''}`,
+        onClick: () => setTab(t)
+      }, t === 'file' ? '⊕ File Upload' : t === 'text' ? '✎ Paste Text' : '◫ SMS Extract'))
+    ),
+
+    tab === 'file' && React.createElement('div', { className: 'section-gap' },
+      React.createElement('div', {
+        className: `upload-zone ${dragging ? 'drag' : ''}`,
+        onClick: () => fileRef.current.click(),
+        onDragOver: e => { e.preventDefault(); setDragging(true); },
+        onDragLeave: () => setDragging(false),
+        onDrop: e => { e.preventDefault(); setDragging(false); handleFiles([...e.dataTransfer.files]); }
+      },
+        React.createElement('div', { className: 'icon' }, '⊕'),
+        React.createElement('div', { className: 'title' }, 'Drop files here or click to browse'),
+        React.createElement('div', { className: 'sub' }, 'Bank statements (CSV/TXT), invoices (PDF), receipts (JPG/PNG)'),
+        React.createElement('input', { ref: fileRef, type: 'file', multiple: true, accept: '.csv,.txt,.pdf,.jpg,.jpeg,.png,.xlsx', style: { display: 'none' }, onChange: e => handleFiles([...e.target.files]) })
+      )
+    ),
+
+    tab === 'text' && React.createElement('div', { className: 'section-gap' },
+      React.createElement('div', { className: 'form-group' },
+        React.createElement('label', { className: 'form-label' }, 'Paste bank statement, invoice, or any financial text'),
+        React.createElement('textarea', { className: 'textarea', rows: 8, placeholder: 'Paste CSV data, email content, or any financial text...', value: manualText, onChange: e => setManualText(e.target.value) })
+      ),
+      React.createElement('button', { className: 'btn btn-primary', onClick: handleManual, disabled: loading || !manualText.trim() },
+        loading ? React.createElement('span', { className: 'loader' }) : null, ' Extract & Import')
+    ),
+
+    tab === 'sms' && React.createElement('div', { className: 'grid-2' },
+      React.createElement('div', null,
+        React.createElement('div', { className: 'form-group' },
+          React.createElement('label', { className: 'form-label' }, 'Paste SMS messages (one per line)'),
+          React.createElement('textarea', { className: 'textarea', rows: 12, value: smsText, onChange: e => setSmsText(e.target.value), placeholder: 'Paste your bank SMS messages here...' })
+        ),
+        React.createElement('div', { style: { display: 'flex', gap: 10 } },
+          React.createElement('button', { className: 'btn btn-primary', onClick: extractSMS, disabled: smsLoading || !smsText.trim() },
+            smsLoading ? React.createElement('span', { className: 'loader' }) : '⊞', ' Extract'),
+          React.createElement('button', { className: 'btn btn-secondary', onClick: () => setSmsText(SAMPLE_SMS) }, 'Load Sample SMS')
+        )
+      ),
+      React.createElement('div', null,
+        smsResults ? React.createElement('div', null,
+          smsResults.latestBalance && React.createElement('div', { className: 'stat-card section-gap' },
+            React.createElement('div', { className: 'stat-label' }, 'Detected Balance'),
+            React.createElement('div', { className: 'stat-value green' }, '₹' + smsResults.latestBalance.toLocaleString())
+          ),
+          smsResults.transactions?.length > 0 && React.createElement('div', { className: 'card section-gap' },
+            React.createElement('div', { className: 'card-title' }, `Transactions (${smsResults.transactions.length})`),
+            React.createElement('div', { className: 'timeline' },
+              smsResults.transactions.slice(0, 8).map((t, i) =>
+                React.createElement('div', { key: i, className: 'timeline-item' },
+                  React.createElement('div', { className: 'timeline-dot', style: { background: t.type === 'credit' ? 'var(--accent)' : 'var(--danger)' } }),
+                  React.createElement('div', { className: 'timeline-content' },
+                    React.createElement('span', { className: 'timeline-amount', style: { color: t.type === 'credit' ? 'var(--accent)' : 'var(--danger)' } }, (t.type === 'credit' ? '+' : '-') + '₹' + t.amount?.toLocaleString()),
+                    React.createElement('span', { style: { color: 'var(--text3)', fontSize: 12, marginLeft: 8 } }, t.description?.slice(0, 40))
+                  )
+                )
+              )
+            )
+          ),
+          smsResults.insights?.length > 0 && React.createElement('div', { className: 'reasoning-box' },
+            React.createElement('span', { className: 'cot-label' }, '◈ AI Insights'),
+            smsResults.insights.join('\n')
+          )
+        ) : React.createElement('div', { className: 'empty' },
+          React.createElement('div', { className: 'icon' }, '◫'),
+          React.createElement('div', { className: 'title' }, 'Paste SMS messages to extract data'),
+          React.createElement('div', { className: 'sub' }, 'Works with HDFC, SBI, ICICI, Axis, Paytm and more')
+        )
+      )
+    ),
+
+    (tab === 'file' || tab === 'text') && loading && React.createElement('div', { style: { textAlign: 'center', padding: '20px', color: 'var(--text2)', fontSize: 13 } },
+      React.createElement('span', { className: 'loader' }),
+      React.createElement('span', { style: { marginLeft: 8 } }, ' Analyzing with Groq AI...')
+    ),
+
+    (tab === 'file' || tab === 'text') && results.length > 0 && React.createElement('div', { className: 'card', style: { marginTop: 20 } },
+      React.createElement('div', { className: 'card-title' }, 'Extraction Results'),
+      results.map((r, i) => React.createElement('div', { key: i, style: { padding: '12px 0', borderBottom: '1px solid var(--border)' } },
+        React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: 6 } },
+          React.createElement('span', { style: { fontWeight: 600, color: 'var(--text)', fontSize: 13 } }, r.file),
+          React.createElement('span', { className: `badge ${r.status === 'success' ? 'badge-green' : 'badge-red'}` }, r.status)
+        ),
+        r.status === 'success' && r.data?.summary && React.createElement('div', { style: { fontSize: 12, color: 'var(--text2)', marginBottom: 6 } }, r.data.summary),
+        r.status === 'error' && React.createElement('div', { style: { fontSize: 12, color: 'var(--danger)' } }, r.error)
+      ))
+    )
+  );
+}
+
+// ─── FUTURE PAGE ─────────────────────────────────────────────────────────────
+function FuturePage({ balance, obligations, receivables }) {
+  const [activeMetric, setActiveMetric] = useState(null);
+
+  const totalObl = obligations.reduce((s, o) => s + o.amount, 0);
+  const totalRec = receivables.reduce((s, r) => s + r.amount, 0);
+  const monthlyExpenses = totalObl; // proxy for monthly burn
+  const monthlyRevenue = totalRec;
+  const netBurn = monthlyExpenses - monthlyRevenue;
+
+  // Derived metrics from actual data
+  const currentRatio = totalObl > 0 ? ((balance + totalRec) / totalObl).toFixed(2) : 'N/A';
+  const burnRate = netBurn > 0 ? netBurn : 0;
+  const runway = burnRate > 0 ? (balance / burnRate).toFixed(1) : '∞';
+  const arTurnover = totalRec > 0 ? (monthlyRevenue / (totalRec / 2 || 1)).toFixed(2) : 'N/A';
+  const inventoryTurnover = totalObl > 0 ? (monthlyRevenue / (totalObl * 0.4 || 1)).toFixed(2) : 'N/A';
+  const operatingCashFlow = monthlyRevenue - monthlyExpenses * 0.7;
+  const capexEstimate = monthlyExpenses * 0.15;
+  const opexEstimate = monthlyExpenses * 0.85;
+
+  const metrics = [
+    {
+      id: 'currentRatio',
+      label: 'Current Ratio',
+      value: currentRatio,
+      unit: 'x',
+      icon: '◈',
+      description: 'Your ability to meet short-term obligations with available assets',
+      formula: '(Cash + Receivables) / Total Payables',
+      computed: `(₹${balance.toLocaleString()} + ₹${totalRec.toLocaleString()}) / ₹${totalObl.toLocaleString()}`,
+      color: parseFloat(currentRatio) >= 1.5 ? '#00e5a0' : parseFloat(currentRatio) >= 1 ? '#ffa502' : '#ff4757',
+      status: parseFloat(currentRatio) >= 1.5 ? 'Healthy' : parseFloat(currentRatio) >= 1 ? 'Borderline' : 'Critical',
+      pathways: [
+        {
+          label: 'Conservative Path',
+          color: '#00e5a0',
+          description: 'You collect all receivables on time and reduce obligations by 20% through renegotiation. Ratio climbs to ~2.1x — strong liquidity, investor-ready.',
+          months: [parseFloat(currentRatio), parseFloat(currentRatio)*1.1, parseFloat(currentRatio)*1.25, parseFloat(currentRatio)*1.4, parseFloat(currentRatio)*1.6, parseFloat(currentRatio)*1.75, parseFloat(currentRatio)*2.1]
+        },
+        {
+          label: 'Steady State',
+          color: '#0091ff',
+          description: 'Business continues at current pace. Ratio remains stable around current level. Sustainable but leaves little buffer for emergencies.',
+          months: [parseFloat(currentRatio), parseFloat(currentRatio)*0.97, parseFloat(currentRatio)*1.02, parseFloat(currentRatio)*0.99, parseFloat(currentRatio)*1.01, parseFloat(currentRatio)*1.0, parseFloat(currentRatio)*1.03]
+        },
+        {
+          label: 'High-Growth Strain',
+          color: '#ff4757',
+          description: 'Aggressive expansion increases obligations faster than receivables. Ratio drops below 1.0 within 4 months — liquidity risk, may need short-term credit.',
+          months: [parseFloat(currentRatio), parseFloat(currentRatio)*0.88, parseFloat(currentRatio)*0.76, parseFloat(currentRatio)*0.65, parseFloat(currentRatio)*0.58, parseFloat(currentRatio)*0.52, parseFloat(currentRatio)*0.48]
+        }
+      ]
+    },
+    {
+      id: 'inventoryTurnover',
+      label: 'Inventory Turnover',
+      value: inventoryTurnover,
+      unit: 'x/mo',
+      icon: '◉',
+      description: 'How quickly your business converts stock into revenue',
+      formula: 'Monthly Revenue / (Avg. Inventory Cost)',
+      computed: `₹${monthlyRevenue.toLocaleString()} / ₹${Math.round(totalObl * 0.4).toLocaleString()} (estimated)`,
+      color: parseFloat(inventoryTurnover) >= 4 ? '#00e5a0' : '#ffa502',
+      status: parseFloat(inventoryTurnover) >= 4 ? 'Efficient' : 'Moderate',
+      pathways: [
+        {
+          label: 'Optimised Supply Chain',
+          color: '#00e5a0',
+          description: 'Supplier renegotiation + faster sales cycle cuts holding time by 30%. Turnover improves to 6x/mo — less cash tied up in stock, better margins.',
+          months: [parseFloat(inventoryTurnover), parseFloat(inventoryTurnover)*1.15, parseFloat(inventoryTurnover)*1.32, parseFloat(inventoryTurnover)*1.48, parseFloat(inventoryTurnover)*1.6, parseFloat(inventoryTurnover)*1.7, parseFloat(inventoryTurnover)*1.75]
+        },
+        {
+          label: 'Market Expansion',
+          color: '#ffa502',
+          description: 'New client onboarding temporarily increases inventory holding. Turnover dips then recovers as revenue scales. Net positive in 5–6 months.',
+          months: [parseFloat(inventoryTurnover), parseFloat(inventoryTurnover)*0.9, parseFloat(inventoryTurnover)*0.85, parseFloat(inventoryTurnover)*0.95, parseFloat(inventoryTurnover)*1.1, parseFloat(inventoryTurnover)*1.3, parseFloat(inventoryTurnover)*1.5]
+        },
+        {
+          label: 'Demand Slowdown',
+          color: '#ff4757',
+          description: 'If key client (Acme Corp / NovaTech) delays or cancels orders, unsold inventory piles up. Turnover drops to 1–2x — cash gets locked in stock, burn accelerates.',
+          months: [parseFloat(inventoryTurnover), parseFloat(inventoryTurnover)*0.8, parseFloat(inventoryTurnover)*0.65, parseFloat(inventoryTurnover)*0.5, parseFloat(inventoryTurnover)*0.4, parseFloat(inventoryTurnover)*0.38, parseFloat(inventoryTurnover)*0.35]
+        }
+      ]
+    },
+    {
+      id: 'burnRate',
+      label: 'Burn Rate',
+      value: burnRate > 0 ? `₹${Math.round(burnRate/1000)}K` : '₹0',
+      unit: '/mo',
+      icon: '◎',
+      description: `Net cash consumed per month. At current rate, runway is ${runway} months`,
+      formula: 'Total Expenses − Total Revenue (monthly)',
+      computed: `₹${monthlyExpenses.toLocaleString()} − ₹${monthlyRevenue.toLocaleString()} = ₹${netBurn.toLocaleString()}`,
+      color: burnRate === 0 ? '#00e5a0' : burnRate < balance * 0.1 ? '#ffa502' : '#ff4757',
+      status: burnRate === 0 ? 'Cash Flow Positive' : burnRate < balance * 0.1 ? 'Manageable' : 'High Burn',
+      pathways: [
+        {
+          label: 'Controlled Burn',
+          color: '#00e5a0',
+          description: `Reduce non-essential expenses by ₹${Math.round(burnRate*0.3/1000)}K/mo (cloud, marketing, vendor renegotiation). Runway extends from ${runway} → ${Math.round(balance/(burnRate*0.7))} months. Profitable within 6 months if receivables hold.`,
+          months: [burnRate, burnRate*0.88, burnRate*0.78, burnRate*0.65, burnRate*0.5, burnRate*0.3, 0].map(v => Math.max(0, Math.round(v/1000)))
+        },
+        {
+          label: 'Revenue-Driven Recovery',
+          color: '#0091ff',
+          description: `Burn stays flat but new revenue from a third client (₹30K+) offsets it. Net burn drops month-on-month. Breakeven at month 5, no cost cuts needed.`,
+          months: [burnRate, burnRate*0.85, burnRate*0.7, burnRate*0.5, burnRate*0.2, 0, 0].map(v => Math.max(0, Math.round(v/1000)))
+        },
+        {
+          label: 'Unchecked Burn',
+          color: '#ff4757',
+          description: `No action taken. AWS, payroll, and supplier costs compound. Burn increases ₹${Math.round(burnRate*0.1/1000)}K/mo. Cash out in ${Math.round(balance/(burnRate*1.1))} months — raises emergency needed.`,
+          months: [burnRate, burnRate*1.1, burnRate*1.22, burnRate*1.35, burnRate*1.5, burnRate*1.65, burnRate*1.8].map(v => Math.round(v/1000))
+        }
+      ]
+    },
+    {
+      id: 'operatingCashFlow',
+      label: 'Operating Cash Flow',
+      value: operatingCashFlow >= 0 ? `+₹${Math.round(operatingCashFlow/1000)}K` : `-₹${Math.round(Math.abs(operatingCashFlow)/1000)}K`,
+      unit: '/mo',
+      icon: '◫',
+      description: 'Cash generated from core operations after essential costs',
+      formula: 'Revenue − 70% of Operating Costs',
+      computed: `₹${monthlyRevenue.toLocaleString()} − ₹${Math.round(monthlyExpenses * 0.7).toLocaleString()}`,
+      color: operatingCashFlow >= 0 ? '#00e5a0' : '#ff4757',
+      status: operatingCashFlow >= 0 ? 'Positive' : 'Negative',
+      pathways: [
+        {
+          label: 'Margin Improvement',
+          color: '#00e5a0',
+          description: `Upsell existing clients (Acme Corp, NovaTech) and automate GST/payroll workflows to cut admin costs. OCF grows ₹${Math.round(operatingCashFlow*0.2/1000)}K/mo — creates a self-sustaining cash engine by month 4.`,
+          months: [operatingCashFlow, operatingCashFlow*1.15, operatingCashFlow*1.3, operatingCashFlow*1.5, operatingCashFlow*1.7, operatingCashFlow*1.85, operatingCashFlow*2.0].map(v => Math.round(v/1000))
+        },
+        {
+          label: 'Flat Operations',
+          color: '#0091ff',
+          description: `Revenue and costs remain stable. OCF stays near current level — predictable but leaves no capital for expansion or emergency buffer. Safe for 6 months.`,
+          months: [operatingCashFlow, operatingCashFlow*1.02, operatingCashFlow*0.98, operatingCashFlow*1.01, operatingCashFlow*0.99, operatingCashFlow*1.0, operatingCashFlow*1.02].map(v => Math.round(v/1000))
+        },
+        {
+          label: 'Cost Overrun Spiral',
+          color: '#ff4757',
+          description: `Cloud infra (AWS) scales with usage, payroll increases with new hires, and supplier invoices grow. OCF turns negative by month 3 — operations become cash-consuming, not cash-generating.`,
+          months: [operatingCashFlow, operatingCashFlow*0.7, operatingCashFlow*0.4, operatingCashFlow*0.1, -operatingCashFlow*0.3, -operatingCashFlow*0.7, -operatingCashFlow*1.1].map(v => Math.round(v/1000))
+        }
+      ]
+    },
+    {
+      id: 'arTurnover',
+      label: 'Accounts Receivable Turnover',
+      value: arTurnover,
+      unit: 'x',
+      icon: '◆',
+      description: 'How many times per month you collect outstanding customer payments',
+      formula: 'Monthly Revenue / Avg. Accounts Receivable',
+      computed: `₹${monthlyRevenue.toLocaleString()} / ₹${Math.round(totalRec/2).toLocaleString()}`,
+      color: parseFloat(arTurnover) >= 6 ? '#00e5a0' : parseFloat(arTurnover) >= 3 ? '#ffa502' : '#ff4757',
+      status: parseFloat(arTurnover) >= 6 ? 'Fast Collections' : parseFloat(arTurnover) >= 3 ? 'Average' : 'Slow Collections',
+      pathways: [
+        {
+          label: 'Tighter Credit Policy',
+          color: '#00e5a0',
+          description: `Move NovaTech Ltd to net-7 payment terms and automate reminders for Acme Corp. AR turnover doubles — cash cycle shortens by ~${Math.round(30/parseFloat(arTurnover))} days, freeing ₹${Math.round(totalRec*0.3/1000)}K+ into working capital.`,
+          months: [parseFloat(arTurnover), parseFloat(arTurnover)*1.2, parseFloat(arTurnover)*1.45, parseFloat(arTurnover)*1.7, parseFloat(arTurnover)*1.9, parseFloat(arTurnover)*2.1, parseFloat(arTurnover)*2.3]
+        },
+        {
+          label: 'Status Quo Collections',
+          color: '#0091ff',
+          description: `No change to collection process. NovaTech's "pending" status risks delays. AR turnover stays flat — predictable but leaves ₹${totalRec.toLocaleString()} tied up outside your account consistently.`,
+          months: [parseFloat(arTurnover), parseFloat(arTurnover)*0.98, parseFloat(arTurnover)*1.01, parseFloat(arTurnover)*0.99, parseFloat(arTurnover)*1.0, parseFloat(arTurnover)*1.02, parseFloat(arTurnover)*1.0]
+        },
+        {
+          label: 'Client Default Risk',
+          color: '#ff4757',
+          description: `NovaTech delays payment by 30+ days and Acme Corp disputes an invoice. AR turnover collapses — ₹${totalRec.toLocaleString()} stuck in receivables while payroll and GST come due. Emergency bridge financing likely needed.`,
+          months: [parseFloat(arTurnover), parseFloat(arTurnover)*0.75, parseFloat(arTurnover)*0.55, parseFloat(arTurnover)*0.4, parseFloat(arTurnover)*0.3, parseFloat(arTurnover)*0.28, parseFloat(arTurnover)*0.25]
+        }
+      ]
+    },
+    {
+      id: 'capexOpex',
+      label: 'CapEx / OpEx',
+      value: `${Math.round((capexEstimate/monthlyExpenses)*100)}%`,
+      unit: 'CapEx ratio',
+      icon: '⊕',
+      description: 'Balance between long-term investment (CapEx) and day-to-day running costs (OpEx)',
+      formula: 'CapEx = ~15% of expenses (infra, equipment) | OpEx = ~85% (payroll, rent, GST)',
+      computed: `CapEx ≈ ₹${Math.round(capexEstimate/1000)}K | OpEx ≈ ₹${Math.round(opexEstimate/1000)}K`,
+      color: '#0091ff',
+      status: 'Asset-Light',
+      pathways: [
+        {
+          label: 'Invest in Infrastructure',
+          color: '#00e5a0',
+          description: `Shift 25% budget to CapEx (own servers, office, equipment). Higher upfront cost but reduces recurring OpEx by ₹${Math.round(opexEstimate*0.15/1000)}K/mo within 8 months. Long-term margins improve significantly — a bet on growth.`,
+          months: [15, 22, 28, 28, 27, 25, 24]
+        },
+        {
+          label: 'OpEx-Lean Model',
+          color: '#0091ff',
+          description: `Keep asset-light (AWS, co-working, SaaS tools). CapEx stays ~10–15%. Maximum flexibility and low fixed costs — ideal for current runway length. Cash preserved for payroll and obligations.`,
+          months: [15, 14, 13, 13, 12, 12, 11]
+        },
+        {
+          label: 'CapEx Overcommitment',
+          color: '#ff4757',
+          description: `Lock into long-term leases and equipment purchases before revenue is stable. CapEx balloons to 40%+ — cash flow becomes illiquid, depreciation eats into reported profit, and refinancing existing obligations becomes harder.`,
+          months: [15, 25, 38, 42, 44, 43, 40]
+        }
+      ]
+    }
+  ];
+
+  const selected = activeMetric ? metrics.find(m => m.id === activeMetric) : null;
+
+  // SVG Line Chart for 3 pathways
+  function PathwayChart({ pathways, yLabel }) {
+    const months = ['Now', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6'];
+    const allVals = pathways.flatMap(p => p.months);
+    const minV = Math.min(...allVals);
+    const maxV = Math.max(...allVals);
+    const range = maxV - minV || 1;
+    const W = 520, H = 180, PL = 48, PR = 12, PT = 16, PB = 36;
+    const cW = W - PL - PR, cH = H - PT - PB;
+    const xPos = (i) => PL + (i / (months.length - 1)) * cW;
+    const yPos = (v) => PT + cH - ((v - minV) / range) * cH;
+
+    return React.createElement('svg', { viewBox: `0 0 ${W} ${H}`, style: { width: '100%', height: 'auto' } },
+      // Grid lines
+      [0, 0.25, 0.5, 0.75, 1].map((frac, i) => {
+        const y = PT + cH * (1 - frac);
+        const val = Math.round(minV + range * frac);
+        return React.createElement('g', { key: i },
+          React.createElement('line', { x1: PL, x2: W - PR, y1: y, y2: y, stroke: '#1e2530', strokeWidth: 1 }),
+          React.createElement('text', { x: PL - 4, y: y + 4, textAnchor: 'end', fontSize: 9, fill: '#3d4a5c', fontFamily: 'DM Mono' }, val)
+        );
+      }),
+      // X-axis labels
+      months.map((m, i) =>
+        React.createElement('text', { key: i, x: xPos(i), y: H - 6, textAnchor: 'middle', fontSize: 9, fill: '#3d4a5c', fontFamily: 'DM Mono' }, m)
+      ),
+      // Pathway lines + dots
+      pathways.map((p, pi) => {
+        const pts = p.months.map((v, i) => `${xPos(i)},${yPos(v)}`).join(' ');
+        return React.createElement('g', { key: pi },
+          React.createElement('polyline', { points: pts, fill: 'none', stroke: p.color, strokeWidth: 2, strokeDasharray: pi === 2 ? '5,3' : pi === 1 ? '8,4' : 'none', opacity: 0.9 }),
+          p.months.map((v, i) =>
+            React.createElement('circle', { key: i, cx: xPos(i), cy: yPos(v), r: 3, fill: p.color, opacity: 0.9 })
+          )
+        );
+      })
+    );
+  }
+
+  return React.createElement('div', null,
+    React.createElement('div', { className: 'page-header' },
+      React.createElement('div', { className: 'page-title' }, 'Future'),
+      React.createElement('div', { className: 'page-sub' }, 'Click any metric to see three possible growth pathways for your business')
+    ),
+
+    // Metric grid
+    React.createElement('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 24 } },
+      metrics.map(m => React.createElement('div', {
+        key: m.id,
+        onClick: () => setActiveMetric(activeMetric === m.id ? null : m.id),
+        style: {
+          background: activeMetric === m.id ? 'var(--surface2)' : 'var(--surface)',
+          border: `1px solid ${activeMetric === m.id ? m.color : 'var(--border)'}`,
+          borderRadius: 12, padding: 18, cursor: 'pointer',
+          transition: 'all 0.2s',
+          boxShadow: activeMetric === m.id ? `0 0 20px ${m.color}22` : 'none'
+        }
+      },
+        React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 } },
+          React.createElement('span', { style: { fontSize: 18 } }, m.icon),
+          React.createElement('span', { className: 'badge', style: { background: m.color + '22', color: m.color, fontSize: 9 } }, m.status)
+        ),
+        React.createElement('div', { style: { fontFamily: 'Syne', fontSize: 22, fontWeight: 700, color: m.color, letterSpacing: -1 } }, m.value + m.unit),
+        React.createElement('div', { style: { fontFamily: 'Syne', fontSize: 11, fontWeight: 700, color: 'var(--text)', marginTop: 4, letterSpacing: 0.5 } }, m.label),
+        React.createElement('div', { style: { fontSize: 11, color: 'var(--text3)', marginTop: 4, lineHeight: 1.4 } }, m.description)
+      ))
+    ),
+
+    // Detail panel
+    selected && React.createElement('div', { className: 'card', style: { border: `1px solid ${selected.color}44` } },
+      React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 } },
+        React.createElement('div', { className: 'card-title' }, selected.label + ' — 6-Month Pathways'),
+        React.createElement('button', { className: 'btn btn-secondary btn-sm', onClick: () => setActiveMetric(null) }, '✕ Close')
+      ),
+
+      // Formula strip
+      React.createElement('div', { style: { background: 'var(--bg)', borderRadius: 8, padding: '10px 14px', marginBottom: 18, fontSize: 11, color: 'var(--text3)', fontFamily: 'DM Mono' } },
+        React.createElement('span', { style: { color: 'var(--accent)', marginRight: 8 } }, 'FORMULA'),
+        selected.formula,
+        React.createElement('br'),
+        React.createElement('span', { style: { color: 'var(--text2)' } }, '▸ Your Business: '),
+        selected.computed
+      ),
+
+      // Chart
+      React.createElement('div', { style: { marginBottom: 18 } },
+        PathwayChart({ pathways: selected.pathways })
+      ),
+
+      // Legend
+      React.createElement('div', { style: { display: 'flex', gap: 20, marginBottom: 18 } },
+        selected.pathways.map((p, i) =>
+          React.createElement('div', { key: i, style: { display: 'flex', alignItems: 'center', gap: 6 } },
+            React.createElement('div', { style: { width: 24, height: 2, background: p.color, borderRadius: 1 } }),
+            React.createElement('span', { style: { fontSize: 11, color: 'var(--text2)', fontFamily: 'DM Mono' } }, p.label)
+          )
+        )
+      ),
+
+      // Pathway explanations
+      React.createElement('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 } },
+        selected.pathways.map((p, i) =>
+          React.createElement('div', { key: i, style: { background: p.color + '0d', border: `1px solid ${p.color}33`, borderRadius: 10, padding: 14 } },
+            React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 } },
+              React.createElement('div', { style: { width: 8, height: 8, borderRadius: '50%', background: p.color } }),
+              React.createElement('span', { style: { fontSize: 11, fontWeight: 700, color: p.color, fontFamily: 'DM Mono', letterSpacing: 0.5 } }, p.label.toUpperCase())
+            ),
+            React.createElement('div', { style: { fontSize: 12, color: 'var(--text2)', lineHeight: 1.6 } }, p.description)
+          )
+        )
+      )
+    ),
+
+    !selected && React.createElement('div', { className: 'empty' },
+      React.createElement('div', { className: 'icon' }, '⊞'),
+      React.createElement('div', { className: 'title' }, 'Select a metric above'),
+      React.createElement('div', { className: 'sub' }, 'See three personalized future pathways with projections based on your actual accounts')
+    )
+  );
+}
+
+// ─── DECISION ENGINE (kept for internal use / Actions) ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+function DecisionEngine({ apiKey, balance, obligations, receivables, setActions, addToast }) {
+  const [analysis, setAnalysis] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const prioritized = prioritizeObligations(obligations, balance);
+  const runway = computeRunway(balance, obligations);
+  const shortfallObligations = prioritized.filter(o => !o.canPay);
+
+  const runAnalysis = async () => {
+    setLoading(true);
+    try {
+      const financialState = {
+        balance, runway: runway.days,
+        shortfall: runway.shortfall,
+        obligations: prioritized.map(o => ({
+          name: o.name, amount: o.amount, dueDate: o.dueDate,
+          daysLeft: o.daysLeft, urgency: o.urgency, canPay: o.canPay,
+          flexible: o.flexible, category: o.category, vendor: o.vendor, penalty: o.penalty
+        })),
+        receivables: receivables.map(r => ({ from: r.from, amount: r.amount, expectedDate: r.expectedDate, status: r.status }))
+      };
+
+      let chainOfThought, recommendations;
+
+      if (apiKey) {
+        const prompt = `You are a cash flow decision engine for a small business. Analyze this financial state and provide a structured decision plan.
+
+Financial State:
+${JSON.stringify(financialState, null, 2)}
+
+Return ONLY valid JSON:
+{
+  "riskLevel": "critical|high|medium|low",
+  "chainOfThought": [
+    {"step": 1, "reasoning": "string"},
+    {"step": 2, "reasoning": "string"},
+    {"step": 3, "reasoning": "string"},
+    {"step": 4, "reasoning": "string"}
+  ],
+  "payNow": [{"name":"string","amount":number,"reason":"string"}],
+  "defer": [{"name":"string","amount":number,"suggestedDate":"YYYY-MM-DD","reason":"string","vendor":"string","relationship":"formal|friendly|neutral"}],
+  "negotiate": [{"name":"string","amount":number,"vendor":"string","ask":"string","relationship":"formal|friendly|neutral"}],
+  "accelerateReceivables": [{"from":"string","amount":number,"action":"string"}],
+  "summary": "2-3 sentence executive summary of the situation and recommended path"
+}`;
+
+        const raw = await callGroq(apiKey, [{ role: 'user', content: prompt }]);
+        try {
+          const parsed = JSON.parse(raw.replace(/```json\n?|\n?```/g, '').trim());
+          chainOfThought = parsed.chainOfThought;
+          recommendations = parsed;
+        } catch {
+          chainOfThought = [{ step: 1, reasoning: raw }];
+          recommendations = { summary: raw, riskLevel: 'unknown' };
+        }
+      } else {
+        // Deterministic fallback
+        const payNow = prioritized.filter(o => o.canPay && o.urgency !== 'low');
+        const defer = prioritized.filter(o => !o.canPay && o.flexible);
+        const negotiate = prioritized.filter(o => !o.canPay && !o.flexible);
+        chainOfThought = [
+          { step: 1, reasoning: `Current cash balance: ₹${balance.toLocaleString()}. Total obligations: ₹${obligations.reduce((s, o) => s + o.amount, 0).toLocaleString()}` },
+          { step: 2, reasoning: `Sorted ${obligations.length} obligations by urgency and category weight. ${shortfallObligations.length} cannot be paid with current balance.` },
+          { step: 3, reasoning: `Identified ${defer.length} flexible obligations that can be deferred. ${negotiate.length} require vendor negotiation.` },
+          { step: 4, reasoning: `Runway: ${runway.days} days. ${runway.shortfall > 0 ? `Shortfall of ₹${runway.shortfall.toLocaleString()} on next critical obligation.` : 'All obligations can be met in sequence.'}` }
+        ];
+        recommendations = { payNow, defer, negotiate, riskLevel: runway.days < 7 ? 'critical' : runway.days < 14 ? 'high' : 'medium', summary: `${shortfallObligations.length > 0 ? `${shortfallObligations.length} obligations cannot be met with current balance of ₹${balance.toLocaleString()}.` : 'Current balance can cover all obligations in priority order.'} Runway: ${runway.days} days.` };
+      }
+
+      setAnalysis({ chainOfThought, ...recommendations });
+
+      // Generate actions
+      const newActions = [];
+      if (recommendations.defer?.length) {
+        recommendations.defer.forEach(d => {
+          newActions.push({ id: Date.now() + Math.random(), type: 'defer', obligation: d.name, vendor: d.vendor, amount: d.amount, reason: d.reason, suggestedDate: d.suggestedDate, relationship: d.relationship || 'neutral', status: 'pending' });
+        });
+      }
+      if (recommendations.negotiate?.length) {
+        recommendations.negotiate.forEach(n => {
+          newActions.push({ id: Date.now() + Math.random(), type: 'negotiate', obligation: n.name, vendor: n.vendor, amount: n.amount, ask: n.ask, relationship: n.relationship || 'neutral', status: 'pending' });
+        });
+      }
+      if (newActions.length) { setActions(prev => [...newActions, ...prev]); addToast(`${newActions.length} actions generated`, 'success'); }
+
+    } catch (e) { addToast(e.message, 'error'); }
+    setLoading(false);
+  };
+
+  const riskColors = { critical: 'var(--danger)', high: 'var(--warn)', medium: 'var(--accent2)', low: 'var(--accent)', unknown: 'var(--text3)' };
+
+  return React.createElement('div', null,
+    React.createElement('div', { className: 'page-header', style: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' } },
+      React.createElement('div', null,
+        React.createElement('div', { className: 'page-title' }, 'Decision Engine'),
+        React.createElement('div', { className: 'page-sub' }, 'AI-powered obligation prioritization with chain-of-thought reasoning')
+      ),
+      React.createElement('button', { className: 'btn btn-primary', onClick: runAnalysis, disabled: loading || obligations.length === 0 },
+        loading ? React.createElement('span', { className: 'loader' }) : '⊞',
+        ' Run Analysis'
+      )
+    ),
+
+    // PRE-ANALYSIS: deterministic summary
+    React.createElement('div', { className: 'grid-3 section-gap' },
+      React.createElement('div', { className: 'stat-card' },
+        React.createElement('div', { className: 'stat-label' }, 'Can Pay Now'),
+        React.createElement('div', { className: 'stat-value green' }, prioritized.filter(o => o.canPay).length),
+        React.createElement('div', { className: 'stat-sub' }, 'obligations covered')
+      ),
+      React.createElement('div', { className: 'stat-card' },
+        React.createElement('div', { className: 'stat-label' }, 'Shortfall'),
+        React.createElement('div', { className: 'stat-value red' }, shortfallObligations.length),
+        React.createElement('div', { className: 'stat-sub' }, runway.shortfall > 0 ? `₹${runway.shortfall.toLocaleString()} gap` : 'No gap')
+      ),
+      React.createElement('div', { className: 'stat-card' },
+        React.createElement('div', { className: 'stat-label' }, 'Flexible'),
+        React.createElement('div', { className: 'stat-value', style: { color: 'var(--accent2)' } }, obligations.filter(o => o.flexible).length),
+        React.createElement('div', { className: 'stat-sub' }, 'can be deferred')
+      )
+    ),
+
+    !analysis && obligations.length > 0 && React.createElement('div', { className: 'card section-gap' },
+      React.createElement('div', { className: 'card-title' }, 'Priority Queue Preview'),
+      React.createElement('table', { className: 'table' },
+        React.createElement('thead', null,
+          React.createElement('tr', null,
+            React.createElement('th', null, '#'),
+            React.createElement('th', null, 'Obligation'),
+            React.createElement('th', null, 'Urgency'),
+            React.createElement('th', null, 'Amount'),
+            React.createElement('th', null, 'Decision')
+          )
+        ),
+        React.createElement('tbody', null,
+          prioritized.map((o, i) =>
+            React.createElement('tr', { key: o.id },
+              React.createElement('td', null, React.createElement('span', { style: { fontFamily: 'DM Mono', fontSize: 11, color: 'var(--text3)' } }, `#${i + 1}`)),
+              React.createElement('td', null, React.createElement('span', { style: { color: 'var(--text)', fontWeight: 500 } }, o.name)),
+              React.createElement('td', null, React.createElement('span', { className: `priority ${o.urgency}` }, o.urgency.toUpperCase())),
+              React.createElement('td', null, React.createElement('span', { style: { fontFamily: 'DM Mono', fontSize: 12 } }, '₹' + o.amount.toLocaleString())),
+              React.createElement('td', null,
+                React.createElement('span', { className: `badge ${o.canPay ? 'badge-green' : o.flexible ? 'badge-warn' : 'badge-red'}` },
+                  o.canPay ? 'PAY' : o.flexible ? 'DEFER' : 'NEGOTIATE')
+              )
+            )
+          )
+        )
+      )
+    ),
+
+    analysis && React.createElement('div', null,
+      // RISK + SUMMARY
+      React.createElement('div', { className: 'card section-gap', style: { borderColor: riskColors[analysis.riskLevel] + '44' } },
+        React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: 10 } },
+          React.createElement('div', { className: 'card-title' }, 'Executive Summary'),
+          React.createElement('span', { className: 'badge', style: { background: riskColors[analysis.riskLevel] + '22', color: riskColors[analysis.riskLevel] } },
+            (analysis.riskLevel || 'UNKNOWN').toUpperCase() + ' RISK'
+          )
+        ),
+        React.createElement('div', { style: { fontSize: 14, lineHeight: 1.7, color: 'var(--text2)' } }, analysis.summary)
+      ),
+
+      // CHAIN OF THOUGHT
+      analysis.chainOfThought?.length > 0 && React.createElement('div', { className: 'card section-gap' },
+        React.createElement('div', { className: 'card-title' }, 'Chain of Thought Reasoning'),
+        React.createElement('div', null,
+          analysis.chainOfThought.map(s =>
+            React.createElement('div', { key: s.step, className: 'cot-step' },
+              React.createElement('div', { className: 'cot-num' }, s.step),
+              React.createElement('div', { className: 'cot-text' }, s.reasoning)
+            )
+          )
+        )
+      ),
+
+      // DECISIONS
+      React.createElement('div', { className: 'grid-2' },
+        analysis.payNow?.length > 0 && React.createElement('div', { className: 'card' },
+          React.createElement('div', { className: 'card-title' }, '✓ Pay Now'),
+          analysis.payNow.map((p, i) =>
+            React.createElement('div', { key: i, style: { padding: '8px 0', borderBottom: '1px solid var(--border)', fontSize: 13 } },
+              React.createElement('div', { style: { fontWeight: 600, color: 'var(--text)' } }, p.name),
+              React.createElement('div', { style: { color: 'var(--accent)', fontFamily: 'DM Mono', fontSize: 12 } }, '₹' + p.amount?.toLocaleString()),
+              React.createElement('div', { style: { color: 'var(--text3)', fontSize: 12, marginTop: 2 } }, p.reason)
+            )
+          )
+        ),
+
+        (analysis.defer?.length > 0 || analysis.negotiate?.length > 0) && React.createElement('div', { className: 'card' },
+          React.createElement('div', { className: 'card-title' }, '↻ Defer / Negotiate'),
+          [...(analysis.defer || []), ...(analysis.negotiate || [])].map((d, i) =>
+            React.createElement('div', { key: i, style: { padding: '8px 0', borderBottom: '1px solid var(--border)', fontSize: 13 } },
+              React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between' } },
+                React.createElement('span', { style: { fontWeight: 600, color: 'var(--text)' } }, d.name),
+                React.createElement('span', { className: `badge ${d.suggestedDate ? 'badge-warn' : 'badge-blue'}` }, d.suggestedDate ? 'DEFER' : 'NEGOTIATE')
+              ),
+              React.createElement('div', { style: { color: 'var(--warn)', fontFamily: 'DM Mono', fontSize: 12 } }, '₹' + d.amount?.toLocaleString()),
+              React.createElement('div', { style: { color: 'var(--text3)', fontSize: 12, marginTop: 2 } }, d.reason || d.ask)
+            )
+          )
+        )
+      )
+    ),
+
+    obligations.length === 0 && React.createElement('div', { className: 'empty' },
+      React.createElement('div', { className: 'icon' }, '⊞'),
+      React.createElement('div', { className: 'title' }, 'No obligations to analyze'),
+      React.createElement('div', { className: 'sub' }, 'Add obligations first, then run the decision engine')
+    )
+  );
+}
+
+// ─── ACTIONS / EMAIL DRAFTS ───────────────────────────────────────────────────
+function Actions({ apiKey, actions, setActions, addToast }) {
+  const [selected, setSelected] = useState(null);
+  const [draft, setDraft] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [customObligation, setCustomObligation] = useState({ vendor: '', amount: '', ask: '', relationship: 'neutral', type: 'defer' });
+  const [showCustom, setShowCustom] = useState(false);
+
+  const generateEmail = async (action) => {
+    setSelected(action);
+    setLoading(true);
+    setDraft(null);
+    try {
+      let emailContent;
+      if (apiKey) {
+        const toneMap = { formal: 'professional and formal', friendly: 'warm and friendly', neutral: 'polite and neutral' };
+        const tone = toneMap[action.relationship] || 'polite';
+        const prompt = `Draft a ${tone} business email for a small business owner.
+Situation: ${action.type === 'defer' ? `Request to defer payment of ₹${action.amount?.toLocaleString()} to ${action.vendor}` : `Negotiate payment terms of ₹${action.amount?.toLocaleString()} with ${action.vendor}`}
+${action.type === 'defer' ? `New proposed date: ${action.suggestedDate || 'to be agreed'}` : `Ask: ${action.ask}`}
+${action.reason ? `Reason: ${action.reason}` : ''}
+Relationship: ${action.relationship}
+
+Return ONLY valid JSON:
+{
+  "subject": "string",
+  "to": "${action.vendor || 'Vendor'}",
+  "body": "full email body (no JSON, no markdown, just the email text)"
+}`;
+        const raw = await callGroq(apiKey, [{ role: 'user', content: prompt }]);
+        try {
+          const p = JSON.parse(raw.replace(/```json\n?|\n?```/g, '').trim());
+          emailContent = p;
+        } catch {
+          emailContent = { subject: `Re: Payment for ${action.obligation}`, to: action.vendor, body: raw };
+        }
+      } else {
+        emailContent = {
+          subject: `Payment Schedule Discussion — ${action.obligation}`,
+          to: action.vendor || 'Vendor',
+          body: `Dear ${action.vendor || 'Team'},\n\nI hope this message finds you well.\n\nI am writing regarding the payment of ₹${action.amount?.toLocaleString()} for ${action.obligation}.\n\n${action.type === 'defer' ? `Due to temporary cash flow constraints, I would like to request a deferral to ${action.suggestedDate || 'a mutually agreed date'}.` : `I would like to discuss adjusted payment terms. ${action.ask || ''}`}\n\nI value our relationship and am committed to settling this at the earliest. Please let me know your thoughts.\n\nBest regards,\n[Your Name]\n[Your Business]`
+        };
+      }
+      setDraft(emailContent);
+    } catch (e) { addToast(e.message, 'error'); }
+    setLoading(false);
+  };
+
+  const markDone = (id) => {
+    setActions(prev => prev.map(a => a.id === id ? { ...a, status: 'done' } : a));
+    if (selected?.id === id) setSelected(null);
+    addToast('Action marked as done', 'success');
+  };
+
+  const createCustom = async () => {
+    const action = { id: Date.now(), ...customObligation, obligation: customObligation.vendor + ' Payment', status: 'pending' };
+    await generateEmail(action);
+    setShowCustom(false);
+  };
+
+  return React.createElement('div', null,
+    React.createElement('div', { className: 'page-header', style: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' } },
+      React.createElement('div', null,
+        React.createElement('div', { className: 'page-title' }, 'Actions & Drafts'),
+        React.createElement('div', { className: 'page-sub' }, 'Review AI-suggested actions and generate negotiation emails')
+      ),
+      React.createElement('button', { className: 'btn btn-secondary', onClick: () => setShowCustom(true) }, '+ Custom Draft')
+    ),
+
+    React.createElement('div', { className: 'grid-2' },
+      // ACTION LIST
+      React.createElement('div', null,
+        actions.length === 0
+          ? React.createElement('div', { className: 'empty' },
+              React.createElement('div', { className: 'icon' }, '◧'),
+              React.createElement('div', { className: 'title' }, 'No actions yet'),
+              React.createElement('div', { className: 'sub' }, 'Run the Decision Engine to generate recommended actions')
+            )
+          : actions.map(a =>
+              React.createElement('div', {
+                key: a.id,
+                className: 'card',
+                style: { marginBottom: 12, cursor: 'pointer', borderColor: selected?.id === a.id ? 'var(--accent)' : 'var(--border)', opacity: a.status === 'done' ? 0.5 : 1 },
+                onClick: () => a.status !== 'done' && generateEmail(a)
+              },
+                React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: 8 } },
+                  React.createElement('span', { className: `badge ${a.type === 'defer' ? 'badge-warn' : 'badge-blue'}` }, a.type.toUpperCase()),
+                  React.createElement('span', { className: `badge ${a.status === 'done' ? 'badge-green' : 'badge-gray'}` }, a.status)
+                ),
+                React.createElement('div', { style: { fontWeight: 600, color: 'var(--text)', fontSize: 14, marginBottom: 4 } }, a.obligation),
+                a.vendor && React.createElement('div', { style: { fontSize: 12, color: 'var(--text3)' } }, 'Vendor: ' + a.vendor),
+                a.amount && React.createElement('div', { style: { fontFamily: 'DM Mono', fontSize: 12, color: 'var(--warn)', marginTop: 4 } }, '₹' + a.amount?.toLocaleString()),
+                a.status !== 'done' && React.createElement('div', { style: { display: 'flex', gap: 8, marginTop: 10 } },
+                  React.createElement('button', {
+                    className: 'btn btn-secondary btn-sm',
+                    onClick: (e) => { e.stopPropagation(); generateEmail(a); }
+                  }, '✎ Draft Email'),
+                  React.createElement('button', {
+                    className: 'btn btn-primary btn-sm',
+                    onClick: (e) => { e.stopPropagation(); markDone(a.id); }
+                  }, '✓ Done')
+                )
+              )
+            )
+      ),
+
+      // EMAIL DRAFT
+      React.createElement('div', null,
+        loading && React.createElement('div', { className: 'card', style: { textAlign: 'center', padding: 30 } },
+          React.createElement('span', { className: 'loader' }),
+          React.createElement('div', { style: { marginTop: 8, color: 'var(--text2)', fontSize: 13 } }, 'Drafting email...')
+        ),
+        !loading && draft && React.createElement('div', null,
+          React.createElement('div', { className: 'card-title' }, '✎ Draft Email'),
+          React.createElement('div', { className: 'email-draft' },
+            React.createElement('div', { className: 'email-header' },
+              React.createElement('div', { className: 'email-field' },
+                React.createElement('span', null, 'TO: '), draft.to),
+              React.createElement('div', { className: 'email-field' },
+                React.createElement('span', null, 'SUBJECT: '), draft.subject)
+            ),
+            React.createElement('div', { className: 'email-body' }, draft.body)
+          ),
+          React.createElement('div', { style: { display: 'flex', gap: 8, marginTop: 12 } },
+            React.createElement('button', {
+              className: 'btn btn-secondary btn-sm',
+              onClick: () => { navigator.clipboard.writeText(`To: ${draft.to}\nSubject: ${draft.subject}\n\n${draft.body}`); addToast('Copied to clipboard', 'success'); }
+            }, '⊕ Copy'),
+            selected && React.createElement('button', {
+              className: 'btn btn-primary btn-sm',
+              onClick: () => markDone(selected.id)
+            }, '✓ Mark Done')
+          )
+        ),
+        !loading && !draft && React.createElement('div', { className: 'empty' },
+          React.createElement('div', { className: 'icon' }, '✎'),
+          React.createElement('div', { className: 'title' }, 'Select an action to draft'),
+          React.createElement('div', { className: 'sub' }, 'Click an action on the left to generate a negotiation email')
+        )
+      )
+    ),
+
+    showCustom && React.createElement('div', { className: 'modal-overlay', onClick: () => setShowCustom(false) },
+      React.createElement('div', { className: 'modal', onClick: e => e.stopPropagation() },
+        React.createElement('div', { className: 'modal-header' },
+          React.createElement('div', { className: 'modal-title' }, 'Custom Email Draft'),
+          React.createElement('button', { className: 'close-btn', onClick: () => setShowCustom(false) }, '✕')
+        ),
+        React.createElement('div', { className: 'modal-body' },
+          React.createElement('div', { className: 'form-group' },
+            React.createElement('label', { className: 'form-label' }, 'Vendor / Counterparty'),
+            React.createElement('input', { className: 'input', value: customObligation.vendor, onChange: e => setCustomObligation(f => ({ ...f, vendor: e.target.value })), placeholder: 'Vendor name' })
+          ),
+          React.createElement('div', { className: 'form-group' },
+            React.createElement('label', { className: 'form-label' }, 'Amount (₹)'),
+            React.createElement('input', { className: 'input', type: 'number', value: customObligation.amount, onChange: e => setCustomObligation(f => ({ ...f, amount: e.target.value })) })
+          ),
+          React.createElement('div', { className: 'form-group' },
+            React.createElement('label', { className: 'form-label' }, 'What to ask / request'),
+            React.createElement('textarea', { className: 'textarea', rows: 3, value: customObligation.ask, onChange: e => setCustomObligation(f => ({ ...f, ask: e.target.value })), placeholder: 'Extend payment by 15 days, partial payment plan, etc.' })
+          ),
+          React.createElement('div', { className: 'form-group' },
+            React.createElement('label', { className: 'form-label' }, 'Email Type'),
+            React.createElement('select', { className: 'select', style: { width: '100%' }, value: customObligation.type, onChange: e => setCustomObligation(f => ({ ...f, type: e.target.value })) },
+              React.createElement('option', { value: 'defer' }, 'Defer Payment'),
+              React.createElement('option', { value: 'negotiate' }, 'Negotiate Terms')
+            )
+          ),
+          React.createElement('div', { className: 'form-group' },
+            React.createElement('label', { className: 'form-label' }, 'Relationship Tone'),
+            React.createElement('select', { className: 'select', style: { width: '100%' }, value: customObligation.relationship, onChange: e => setCustomObligation(f => ({ ...f, relationship: e.target.value })) },
+              React.createElement('option', { value: 'formal' }, 'Formal / Professional'),
+              React.createElement('option', { value: 'neutral' }, 'Neutral / Polite'),
+              React.createElement('option', { value: 'friendly' }, 'Friendly / Warm')
+            )
+          )
+        ),
+        React.createElement('div', { className: 'modal-footer' },
+          React.createElement('button', { className: 'btn btn-secondary', onClick: () => setShowCustom(false) }, 'Cancel'),
+          React.createElement('button', { className: 'btn btn-primary', onClick: createCustom, disabled: loading || !customObligation.vendor }, 'Generate Draft')
+        )
+      )
+    )
+  );
+}
+
+// ─── ROOT APP ─────────────────────────────────────────────────────────────────
+function App() {
+  const [page, setPage] = useState('dashboard');
+  const [apiKey, setApiKey] = useState('');
+  const [balance, setBalance] = useState(62450);
+  const [obligations, setObligations] = useState(SAMPLE_OBLIGATIONS);
+  const [receivables, setReceivables] = useState(SAMPLE_RECEIVABLES);
+  const [actions, setActions] = useState([]);
+  const [toasts, setToasts] = useState([]);
+
+  const addToast = useCallback((msg, type = 'success') => {
+    const id = Date.now();
+    setToasts(prev => [...prev, { id, msg, type }]);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3500);
+  }, []);
+
+  const pages = {
+    dashboard: React.createElement(Dashboard, { balance, obligations, receivables }),
+    obligations: React.createElement(Obligations, { obligations, setObligations, addToast }),
+    receivables: React.createElement(Receivables, { receivables, setReceivables, addToast }),
+    transactions: React.createElement(TransactionHistory, { apiKey, setObligations, setReceivables, setBalance, addToast }),
+    future: React.createElement(FuturePage, { balance, obligations, receivables }),
+    actions: React.createElement(Actions, { apiKey, actions, setActions, addToast }),
+  };
+
+  return React.createElement('div', { className: 'app' },
+    React.createElement(Sidebar, { page, setPage, apiKey, setApiKey }),
+    React.createElement('div', { className: 'main' },
+      // Balance editor strip
+      React.createElement('div', { style: { display: 'flex', justifyContent: 'flex-end', marginBottom: 8, alignItems: 'center', gap: 8 } },
+        React.createElement('span', { style: { fontSize: 12, color: 'var(--text3)', fontFamily: 'DM Mono' } }, 'CASH BALANCE ₹'),
+        React.createElement('input', {
+          className: 'input',
+          type: 'number',
+          value: balance,
+          onChange: e => setBalance(parseFloat(e.target.value) || 0),
+          style: { width: 130, padding: '6px 10px', fontSize: 13, fontFamily: 'DM Mono' }
+        })
+      ),
+      pages[page]
+    ),
+    React.createElement(ToastContainer, { toasts })
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
+</script>
+</body>
+</html>
