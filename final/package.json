@@ -1,0 +1,22 @@
+{
+  "name": "pocketcfo",
+  "version": "1.0.0",
+  "description": "PocketCFO — Smart Cash Flow Intelligence",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "start:frontend": "node server.js",
+    "start:backend": "npm start --prefix backend",
+    "dev": "concurrently -n web,api -c cyan,magenta \"node server.js\" \"npm start --prefix backend\"",
+    "postinstall": "npm install --prefix backend"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
