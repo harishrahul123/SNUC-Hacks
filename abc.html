@@ -570,7 +570,7 @@ function Sidebar({ page, setPage, apiKey, setApiKey }) {
     { id: 'dashboard', label: 'Dashboard', icon: '◈' },
     { id: 'obligations', label: 'Obligations', icon: '◉' },
     { id: 'receivables', label: 'Receivables', icon: '◎' },
-    { id: 'transactions', label: 'Transaction History', icon: '⊕' },
+    { id: 'transactions', label: 'Transactions', icon: '⊕' },
     { id: 'future', label: 'Future', icon: '⊞' },
     { id: 'actions', label: 'Actions', icon: '◧' },
   ];
@@ -1257,19 +1257,134 @@ ${smsText}`;
   );
 }
 
-// ─── TRANSACTION HISTORY (merged Ingest + SMS) ────────────────────────────────
-function TransactionHistory({ apiKey, setObligations, setReceivables, setBalance, addToast }) {
-  const [tab, setTab] = useState('file');
-  const [dragging, setDragging] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState([]);
-  const [manualText, setManualText] = useState('');
-  const [smsText, setSmsText] = useState('');
-  const [smsResults, setSmsResults] = useState(null);
-  const [smsLoading, setSmsLoading] = useState(false);
-  const fileRef = useRef();
+// ─── TRANSACTIONS (History + Gmail) ───────────────────────────────────────────
+function TransactionHistory({ balance, setBalance, transactions, setTransactions, addToast }) {
+  const [tab, setTab] = useState('history');
+  const BACKEND_BASE = 'http://localhost:8080';
 
-  const SAMPLE_SMS = `HDFC Bank: Rs.45,000.00 credited to your a/c XX1234 on 15-01-24 by ACME CORP. Avail Bal: Rs.62,450.00\nSBI: Rs.12,500 debited from a/c XX5678 on 16-01-24. UPI ref: 234567890. Avail Bal: Rs.49,950\nICICI: Your EMI of Rs.8,200 has been debited on 17-01-24. Loan a/c XX9012. Outstanding: Rs.2,45,600\nPaytm: Rs.3,500 paid to RAWMAT INDUSTRIES on 17-01-24. UPI ID: rawmat@paytm. Ref: 98765432\nAXIS: Salary credit Rs.85,000 on 01-01-24. A/c XX3456. Available balance: Rs.1,02,450`;
+  const [gmailConnected, setGmailConnected] = useState(false);
+  const [gmailEmail, setGmailEmail] = useState('');
+  const [gmailLoading, setGmailLoading] = useState(false);
+  const [gmailLastSync, setGmailLastSync] = useState(null);
+  const [autoSync, setAutoSync] = useState(false);
+  const [gmailTransactions, setGmailTransactions] = useState([]);
+  const [lookbackDays, setLookbackDays] = useState(7);
+
+  const checkGmailStatus = async (silent = false) => {
+    setGmailLoading(true);
+    try {
+      const res = await fetch(`${BACKEND_BASE}/api/gmail/status`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to fetch Gmail status');
+      setGmailConnected(!!data.connected);
+      setGmailEmail(data.email || '');
+      if (!silent && data.connected && data.email) addToast(`Connected Gmail: ${data.email}`, 'success');
+      if (!silent && !data.connected) addToast('Gmail not connected yet', 'error');
+      return data;
+    } catch (e) {
+      if (!silent) addToast(e.message, 'error');
+      setGmailConnected(false);
+      setGmailEmail('');
+      return { connected: false };
+    } finally {
+      setGmailLoading(false);
+    }
+  };
+
+  const syncGmail = async (silent = false) => {
+    setGmailLoading(true);
+    try {
+      const res = await fetch(`${BACKEND_BASE}/api/gmail/sync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sinceDays: lookbackDays, maxResults: 50 })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Gmail sync failed');
+
+      const imported = data.transactions || [];
+      if (!silent) {
+        addToast(imported.length ? `Imported ${imported.length} transaction(s) from Gmail` : 'No new Gmail transactions found', 'success');
+      }
+
+      let latestBalance = null;
+      imported.forEach(t => { if (typeof t.balance === 'number') latestBalance = t.balance; });
+
+      // Add to Transactions → History (not Obligations/Receivables)
+      const historyEntries = imported.map(t => ({
+        id: t.id || (Date.now() + Math.floor(Math.random() * 1000000)),
+        date: t.date,
+        description: t.description || t.counterparty || (t.type === 'debit' ? 'Debit' : 'Credit'),
+        amount: t.amount,
+        type: t.type,
+        counterparty: t.counterparty || '',
+        reference: t.reference || '',
+        source: 'gmail',
+        status: 'completed'
+      }));
+      if (historyEntries.length) {
+        setTransactions(prev => [...historyEntries, ...prev]);
+      }
+
+      // Update cash balance from Gmail (if present)
+      if (latestBalance !== null) {
+        setBalance(latestBalance);
+        if (!silent) addToast(`Balance updated: ₹${latestBalance.toLocaleString()}`, 'success');
+      }
+
+      setGmailTransactions(imported);
+      setGmailLastSync(data.fetchedAt || new Date().toISOString());
+      setGmailConnected(true);
+      return imported;
+    } catch (e) {
+      if (!silent) addToast(e.message, 'error');
+      setGmailTransactions([]);
+      return [];
+    } finally {
+      setGmailLoading(false);
+    }
+  };
+
+  const resetGmailImport = async () => {
+    setGmailLoading(true);
+    try {
+      const res = await fetch(`${BACKEND_BASE}/api/gmail/reset`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Reset failed');
+      addToast('Gmail import memory cleared. You can sync again.', 'success');
+    } catch (e) {
+      addToast(e.message, 'error');
+    } finally {
+      setGmailLoading(false);
+    }
+  };
+
+  const disconnectGmail = async () => {
+    setGmailLoading(true);
+    try {
+      const res = await fetch(`${BACKEND_BASE}/api/gmail/disconnect`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Disconnect failed');
+      setGmailConnected(false);
+      setGmailEmail('');
+      setAutoSync(false);
+      setGmailTransactions([]);
+      setGmailLastSync(null);
+      addToast('Gmail disconnected. Click "Connect Gmail" to re-link.', 'success');
+    } catch (e) {
+      addToast(e.message, 'error');
+    } finally {
+      setGmailLoading(false);
+    }
+  };
+
+  useEffect(() => { checkGmailStatus(true); }, []);
+
+  useEffect(() => {
+    if (!autoSync || !gmailConnected) return;
+    const timer = setInterval(() => { syncGmail(true).catch(() => null); }, 60000);
+    return () => clearInterval(timer);
+  }, [autoSync, gmailConnected]);
 
   const processWithGroq = async (content, filename) => {
     if (!apiKey) throw new Error('Enter your Groq API key in the sidebar');
@@ -1352,105 +1467,157 @@ function TransactionHistory({ apiKey, setObligations, setReceivables, setBalance
     setSmsLoading(false);
   };
 
-  const tabs = ['file', 'text', 'sms'];
+  const tabs = ['history', 'gmail'];
 
   return React.createElement('div', null,
     React.createElement('div', { className: 'page-header' },
-      React.createElement('div', { className: 'page-title' }, 'Transaction History'),
-      React.createElement('div', { className: 'page-sub' }, 'Import bank statements, invoices, or extract from SMS messages')
+      React.createElement('div', { className: 'page-title' }, 'Transactions'),
+      React.createElement('div', { className: 'page-sub' }, 'Gmail-synced transaction alerts + your full history')
     ),
 
     React.createElement('div', { className: 'tabs' },
       tabs.map(t => React.createElement('div', {
         key: t, className: `tab ${tab === t ? 'active' : ''}`,
         onClick: () => setTab(t)
-      }, t === 'file' ? '⊕ File Upload' : t === 'text' ? '✎ Paste Text' : '◫ SMS Extract'))
+      }, t === 'history' ? '⟲ History' : '✉ Gmail Auto-Import'))
     ),
 
-    tab === 'file' && React.createElement('div', { className: 'section-gap' },
-      React.createElement('div', {
-        className: `upload-zone ${dragging ? 'drag' : ''}`,
-        onClick: () => fileRef.current.click(),
-        onDragOver: e => { e.preventDefault(); setDragging(true); },
-        onDragLeave: () => setDragging(false),
-        onDrop: e => { e.preventDefault(); setDragging(false); handleFiles([...e.dataTransfer.files]); }
-      },
-        React.createElement('div', { className: 'icon' }, '⊕'),
-        React.createElement('div', { className: 'title' }, 'Drop files here or click to browse'),
-        React.createElement('div', { className: 'sub' }, 'Bank statements (CSV/TXT), invoices (PDF), receipts (JPG/PNG)'),
-        React.createElement('input', { ref: fileRef, type: 'file', multiple: true, accept: '.csv,.txt,.pdf,.jpg,.jpeg,.png,.xlsx', style: { display: 'none' }, onChange: e => handleFiles([...e.target.files]) })
+    tab === 'history' && React.createElement('div', { className: 'section-gap' },
+      React.createElement('div', { className: 'grid-2 section-gap' },
+        React.createElement('div', { className: 'stat-card' },
+          React.createElement('div', { className: 'stat-label' }, 'Cash Balance'),
+          React.createElement('div', { className: 'stat-value green' }, '₹' + (balance || 0).toLocaleString()),
+          React.createElement('div', { className: 'stat-sub' }, 'Updated from Gmail when available')
+        ),
+        React.createElement('div', { className: 'stat-card' },
+          React.createElement('div', { className: 'stat-label' }, 'Transactions'),
+          React.createElement('div', { className: 'stat-value', style: { color: '#0091ff' } }, (transactions || []).length.toLocaleString()),
+          React.createElement('div', { className: 'stat-sub' }, 'Full history list')
+        )
+      ),
+
+      React.createElement('div', { className: 'card' },
+        React.createElement('div', { className: 'card-title' }, 'History'),
+        (transactions || []).length === 0
+          ? React.createElement('div', { className: 'empty' },
+            React.createElement('div', { className: 'icon' }, '⊕'),
+            React.createElement('div', { className: 'title' }, 'No transactions yet'),
+            React.createElement('div', { className: 'sub' }, 'Use Gmail Auto-Import to populate your history')
+          )
+          : React.createElement('table', { className: 'table' },
+            React.createElement('thead', null,
+              React.createElement('tr', null,
+                React.createElement('th', null, 'Date'),
+                React.createElement('th', null, 'Description'),
+                React.createElement('th', null, 'Type'),
+                React.createElement('th', null, 'Amount'),
+                React.createElement('th', null, 'Status'),
+                React.createElement('th', null, 'Source')
+              )
+            ),
+            React.createElement('tbody', null,
+              (transactions || []).slice(0, 50).map(t =>
+                React.createElement('tr', { key: t.id },
+                  React.createElement('td', null, React.createElement('span', { style: { fontFamily: 'DM Mono', fontSize: 12 } }, t.date || '—')),
+                  React.createElement('td', null, React.createElement('span', { style: { color: 'var(--text)', fontWeight: 500 } }, (t.description || '').slice(0, 60))),
+                  React.createElement('td', null, React.createElement('span', { className: `badge ${t.type === 'credit' ? 'badge-green' : 'badge-red'}` }, t.type || '—')),
+                  React.createElement('td', null,
+                    React.createElement('span', { style: { fontFamily: 'DM Mono', fontSize: 12, color: t.type === 'credit' ? 'var(--accent)' : 'var(--danger)' } },
+                      (t.type === 'credit' ? '+' : '-') + '₹' + (t.amount || 0).toLocaleString()
+                    )
+                  ),
+                  React.createElement('td', null, React.createElement('span', { className: 'badge badge-gray' }, t.status || 'completed')),
+                  React.createElement('td', null, React.createElement('span', { className: 'badge badge-blue' }, t.source || '—'))
+                )
+              )
+            )
+          )
       )
     ),
 
-    tab === 'text' && React.createElement('div', { className: 'section-gap' },
-      React.createElement('div', { className: 'form-group' },
-        React.createElement('label', { className: 'form-label' }, 'Paste bank statement, invoice, or any financial text'),
-        React.createElement('textarea', { className: 'textarea', rows: 8, placeholder: 'Paste CSV data, email content, or any financial text...', value: manualText, onChange: e => setManualText(e.target.value) })
-      ),
-      React.createElement('button', { className: 'btn btn-primary', onClick: handleManual, disabled: loading || !manualText.trim() },
-        loading ? React.createElement('span', { className: 'loader' }) : null, ' Extract & Import')
-    ),
-
-    tab === 'sms' && React.createElement('div', { className: 'grid-2' },
-      React.createElement('div', null,
-        React.createElement('div', { className: 'form-group' },
-          React.createElement('label', { className: 'form-label' }, 'Paste SMS messages (one per line)'),
-          React.createElement('textarea', { className: 'textarea', rows: 12, value: smsText, onChange: e => setSmsText(e.target.value), placeholder: 'Paste your bank SMS messages here...' })
+    tab === 'gmail' && React.createElement('div', { className: 'section-gap' },
+      React.createElement('div', { className: 'card', style: { marginBottom: 16 } },
+        React.createElement('div', { className: 'card-title' }, 'Gmail Auto-Import'),
+        React.createElement('div', { style: { display: 'flex', gap: 12, justifyContent: 'space-between', alignItems: 'center' } },
+          React.createElement('div', null,
+            React.createElement('div', { style: { fontSize: 13, color: 'var(--text)', fontWeight: 700 } }, gmailConnected ? 'Connected' : 'Not connected'),
+            React.createElement('div', { style: { fontSize: 12, color: 'var(--text2)', marginTop: 4 } }, gmailConnected ? gmailEmail : 'Connect your Gmail to auto-import UPI debit/credit alerts')
+          ),
+          React.createElement('div', { style: { display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' } },
+            React.createElement('button', {
+              className: 'btn btn-primary',
+              onClick: () => { window.location.href = `${BACKEND_BASE}/auth/google/start`; },
+              disabled: gmailLoading
+            }, gmailLoading ? React.createElement('span', { className: 'loader' }) : 'Connect Gmail'),
+            React.createElement('button', { className: 'btn btn-secondary', onClick: () => checkGmailStatus(false), disabled: gmailLoading }, 'Check status')
+          )
         ),
-        React.createElement('div', { style: { display: 'flex', gap: 10 } },
-          React.createElement('button', { className: 'btn btn-primary', onClick: extractSMS, disabled: smsLoading || !smsText.trim() },
-            smsLoading ? React.createElement('span', { className: 'loader' }) : '⊞', ' Extract'),
-          React.createElement('button', { className: 'btn btn-secondary', onClick: () => setSmsText(SAMPLE_SMS) }, 'Load Sample SMS')
+        React.createElement('div', { className: 'reasoning-box', style: { marginTop: 16, borderColor: 'rgba(0,229,160,0.18)' } },
+          React.createElement('div', { style: { fontWeight: 700, marginBottom: 6, color: 'var(--text)' } }, 'How it works'),
+          React.createElement('div', null, 'Every minute, we poll Gmail for new transaction-alert emails and add them into your Transactions → History.')
         )
       ),
-      React.createElement('div', null,
-        smsResults ? React.createElement('div', null,
-          smsResults.latestBalance && React.createElement('div', { className: 'stat-card section-gap' },
-            React.createElement('div', { className: 'stat-label' }, 'Detected Balance'),
-            React.createElement('div', { className: 'stat-value green' }, '₹' + smsResults.latestBalance.toLocaleString())
+
+      React.createElement('div', { className: 'card' },
+        React.createElement('div', { className: 'card-title' }, 'Sync'),
+        React.createElement('div', { style: { display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' } },
+          React.createElement('div', { style: { display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' } },
+            React.createElement('button', { className: 'btn btn-primary', onClick: () => syncGmail(false), disabled: gmailLoading || !gmailConnected },
+              gmailLoading ? React.createElement('span', { className: 'loader' }) : 'Sync now'
+            ),
+            React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
+              React.createElement('span', { style: { fontSize: 12, color: 'var(--text3)', fontFamily: 'DM Mono' } }, 'LOOKBACK (DAYS)'),
+              React.createElement('input', {
+                className: 'input',
+                type: 'number',
+                min: 1,
+                max: 30,
+                value: lookbackDays,
+                onChange: e => setLookbackDays(Math.min(30, Math.max(1, parseInt(e.target.value || '7', 10)))),
+                style: { width: 90, padding: '6px 10px', fontSize: 13, fontFamily: 'DM Mono' }
+              })
+            ),
+            React.createElement('label', { style: { display: 'flex', alignItems: 'center', gap: 8, cursor: gmailConnected ? 'pointer' : 'not-allowed', color: 'var(--text2)', fontSize: 13 } },
+              React.createElement('input', { type: 'checkbox', checked: autoSync, onChange: e => setAutoSync(e.target.checked), disabled: !gmailConnected }),
+              'Auto-sync every 60s'
+            )
           ),
-          smsResults.transactions?.length > 0 && React.createElement('div', { className: 'card section-gap' },
-            React.createElement('div', { className: 'card-title' }, `Transactions (${smsResults.transactions.length})`),
+          React.createElement('div', { style: { fontSize: 12, color: 'var(--text3)', fontFamily: 'DM Mono' } },
+            gmailLastSync ? `Last sync: ${new Date(gmailLastSync).toLocaleString()}` : 'No sync yet'
+          )
+        ),
+
+        React.createElement('div', { style: { display: 'flex', gap: 10, marginTop: 14, flexWrap: 'wrap' } },
+          React.createElement('button', { className: 'btn btn-secondary', onClick: resetGmailImport, disabled: gmailLoading || !gmailConnected }, 'Reset import memory'),
+          React.createElement('button', { className: 'btn btn-danger', onClick: disconnectGmail, disabled: gmailLoading || !gmailConnected }, 'Disconnect Gmail')
+        ),
+
+        gmailTransactions.length > 0
+          ? React.createElement('div', { style: { marginTop: 16 } },
+            React.createElement('div', { className: 'card-title', style: { marginBottom: 10 } }, `Imported (${gmailTransactions.length})`),
             React.createElement('div', { className: 'timeline' },
-              smsResults.transactions.slice(0, 8).map((t, i) =>
-                React.createElement('div', { key: i, className: 'timeline-item' },
+              gmailTransactions.slice(0, 10).map((t, i) =>
+                React.createElement('div', { key: t.id || i, className: 'timeline-item' },
                   React.createElement('div', { className: 'timeline-dot', style: { background: t.type === 'credit' ? 'var(--accent)' : 'var(--danger)' } }),
                   React.createElement('div', { className: 'timeline-content' },
-                    React.createElement('span', { className: 'timeline-amount', style: { color: t.type === 'credit' ? 'var(--accent)' : 'var(--danger)' } }, (t.type === 'credit' ? '+' : '-') + '₹' + t.amount?.toLocaleString()),
-                    React.createElement('span', { style: { color: 'var(--text3)', fontSize: 12, marginLeft: 8 } }, t.description?.slice(0, 40))
+                    React.createElement('span', { className: 'timeline-amount', style: { color: t.type === 'credit' ? 'var(--accent)' : 'var(--danger)' } },
+                      (t.type === 'credit' ? '+' : '-') + '₹' + t.amount?.toLocaleString()
+                    ),
+                    React.createElement('span', { style: { color: 'var(--text3)', fontSize: 12, marginLeft: 8, whiteSpace: 'nowrap' } },
+                      (t.date || '').toString().replace('T', ' ') + (t.counterparty ? ` • ${t.counterparty}` : '')
+                    )
                   )
                 )
               )
             )
-          ),
-          smsResults.insights?.length > 0 && React.createElement('div', { className: 'reasoning-box' },
-            React.createElement('span', { className: 'cot-label' }, '◈ AI Insights'),
-            smsResults.insights.join('\n')
           )
-        ) : React.createElement('div', { className: 'empty' },
-          React.createElement('div', { className: 'icon' }, '◫'),
-          React.createElement('div', { className: 'title' }, 'Paste SMS messages to extract data'),
-          React.createElement('div', { className: 'sub' }, 'Works with HDFC, SBI, ICICI, Axis, Paytm and more')
-        )
+          : React.createElement('div', { className: 'empty', style: { marginTop: 16 } },
+            React.createElement('div', { className: 'icon' }, '✉'),
+            React.createElement('div', { className: 'title' }, 'Nothing imported yet'),
+            React.createElement('div', { className: 'sub' }, 'Click "Sync now" to import new Gmail transaction alerts')
+          )
       )
     ),
-
-    (tab === 'file' || tab === 'text') && loading && React.createElement('div', { style: { textAlign: 'center', padding: '20px', color: 'var(--text2)', fontSize: 13 } },
-      React.createElement('span', { className: 'loader' }),
-      React.createElement('span', { style: { marginLeft: 8 } }, ' Analyzing with Groq AI...')
-    ),
-
-    (tab === 'file' || tab === 'text') && results.length > 0 && React.createElement('div', { className: 'card', style: { marginTop: 20 } },
-      React.createElement('div', { className: 'card-title' }, 'Extraction Results'),
-      results.map((r, i) => React.createElement('div', { key: i, style: { padding: '12px 0', borderBottom: '1px solid var(--border)' } },
-        React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: 6 } },
-          React.createElement('span', { style: { fontWeight: 600, color: 'var(--text)', fontSize: 13 } }, r.file),
-          React.createElement('span', { className: `badge ${r.status === 'success' ? 'badge-green' : 'badge-red'}` }, r.status)
-        ),
-        r.status === 'success' && r.data?.summary && React.createElement('div', { style: { fontSize: 12, color: 'var(--text2)', marginBottom: 6 } }, r.data.summary),
-        r.status === 'error' && React.createElement('div', { style: { fontSize: 12, color: 'var(--danger)' } }, r.error)
-      ))
-    )
   );
 }
 
@@ -2470,6 +2637,7 @@ function App() {
   const [balance, setBalance] = useState(0);
   const [obligations, setObligations] = useState(SAMPLE_OBLIGATIONS);
   const [receivables, setReceivables] = useState(SAMPLE_RECEIVABLES);
+  const [transactions, setTransactions] = useState([]);
   const [actions, setActions] = useState([]);
   const [toasts, setToasts] = useState([]);
 
@@ -2499,7 +2667,7 @@ function App() {
     dashboard: React.createElement(Dashboard, { balance, obligations, receivables }),
     obligations: React.createElement(Obligations, { obligations, setObligations, addToast }),
     receivables: React.createElement(Receivables, { receivables, setReceivables, addToast }),
-    transactions: React.createElement(TransactionHistory, { apiKey, setObligations, setReceivables, setBalance, addToast }),
+    transactions: React.createElement(TransactionHistory, { balance, setBalance, transactions, setTransactions, addToast }),
     future: React.createElement(FuturePage, { balance, obligations, receivables }),
     actions: React.createElement(Actions, { apiKey, actions, setActions, addToast }),
   };
