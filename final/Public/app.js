@@ -138,6 +138,69 @@ function prioritizeObligations(obligations = [], balance = 0, receivables = []) 
   });
 }
 
+function addDays(date, days) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+function formatDateLabel(date) {
+  return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+}
+
+/** Local calendar YYYY-MM-DD (avoids UTC vs local day mismatch in cash buckets). */
+function calendarDayKey(d) {
+  if (!(d instanceof Date) || Number.isNaN(d.getTime())) return '';
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function getProjectedEvents(balance, obligations = [], receivables = []) {
+  const today = new Date();
+  const events = [
+    ...obligations.map(o => ({
+      id: `obl-${o.id}`,
+      type: 'outflow',
+      label: o.name || 'Obligation',
+      date: new Date(o.dueDate),
+      amount: Number(o.amount) || 0,
+      category: o.category || 'other'
+    })),
+    ...receivables.map(r => ({
+      id: `rec-${r.id}`,
+      type: 'inflow',
+      label: r.from ? `Receivable from ${r.from}` : 'Receivable',
+      date: new Date(r.expectedDate),
+      amount: Number(r.amount) || 0,
+      category: 'receivable'
+    }))
+  ]
+    .filter(e => !Number.isNaN(e.date.getTime()))
+    .sort((a, b) => a.date - b.date);
+
+  let runningBalance = Number(balance) || 0;
+  const timeline = [{
+    id: 'start',
+    type: 'start',
+    label: 'Today',
+    date: today,
+    amount: 0,
+    runningBalance
+  }];
+
+  for (const event of events) {
+    runningBalance += event.type === 'inflow' ? event.amount : -event.amount;
+    timeline.push({
+      ...event,
+      runningBalance
+    });
+  }
+
+  return timeline;
+}
+
 // ─── LOCAL INVOICE EXTRACTION (PDF TEXT + OCR) ───────────────────────────────
 let ocrWorkerPromise = null;
 
@@ -322,26 +385,34 @@ function ToastContainer({ toasts }) {
 }
 
 // ─── SIDEBAR ──────────────────────────────────────────────────────────────────
-function Sidebar({ page, setPage, apiKey, setApiKey }) {
+function Sidebar({ page, setPage, apiKey, setApiKey, theme, toggleTheme }) {
   const items = [
-    { id: 'dashboard', label: 'Dashboard', icon: '◈' },
-    { id: 'obligations', label: 'Obligations', icon: '◉' },
-    { id: 'receivables', label: 'Receivables', icon: '◎' },
-    { id: 'transactions', label: 'Transactions', icon: '⊕' },
-    { id: 'future', label: 'Future', icon: '⊞' },
-    { id: 'actions', label: 'Actions', icon: '◧' },
+    { id: 'dashboard', label: 'Dashboard' },
+    { id: 'reality', label: 'Reality' },
+    { id: 'obligations', label: 'Obligations' },
+    { id: 'receivables', label: 'Receivables' },
+    { id: 'transactions', label: 'Transactions' },
+    { id: 'future', label: 'Future' },
+    { id: 'actions', label: 'Actions' }
   ];
+  const navIcon = '◈';
   return React.createElement('div', { className: 'sidebar' },
-    React.createElement('div', { className: 'logo' }, 'Pocket', React.createElement('span', null, 'CFO')),
+    React.createElement('div', { className: 'logo' }, 'Pocket', React.createElement('span', { className: 'logo-cfo' }, 'CFO')),
     React.createElement('nav', { className: 'nav' },
       items.map(i => React.createElement('div', {
         key: i.id, className: `nav-item ${page === i.id ? 'active' : ''}`,
         onClick: () => setPage(i.id)
       },
-        React.createElement('span', { className: 'icon' }, i.icon),
+        React.createElement('span', { className: 'icon' }, navIcon),
         i.label
       ))
     ),
+    React.createElement('button', {
+      type: 'button',
+      className: 'theme-toggle theme-toggle--sidebar',
+      onClick: toggleTheme,
+      'aria-label': theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'
+    }, theme === 'dark' ? '☼ Light mode' : '🌙 Dark mode'),
     React.createElement('div', { className: 'api-key-section' },
       React.createElement('label', null, 'GROQ API KEY'),
       React.createElement('input', {
@@ -390,6 +461,497 @@ function CashFlowChart({ balance, obligations, receivables }) {
   );
 }
 
+function ScenarioLineChart({ points }) {
+  if (!points || points.length === 0) return null;
+  const width = 520;
+  const height = 170;
+  const pad = 22;
+  const vals = points.map(p => p.value);
+  const min = Math.min(...vals);
+  const max = Math.max(...vals);
+  const rawRange = max - min;
+  const padY = Math.max(rawRange * 0.08, Math.max(Math.abs(max), Math.abs(min)) * 0.02, 500);
+  const minV = min - padY;
+  const maxV = max + padY;
+  const range = Math.max(1, maxV - minV);
+  const x = i => pad + (i / Math.max(1, points.length - 1)) * (width - pad * 2);
+  const y = v => (height - pad) - ((v - minV) / range) * (height - pad * 2);
+  const polyline = points.map((p, i) => `${x(i)},${y(p.value)}`).join(' ');
+  const areaPath = `M ${x(0)},${height - pad} L ${points.map((p, i) => `${x(i)},${y(p.value)}`).join(' L ')} L ${x(points.length - 1)},${height - pad} Z`;
+  return React.createElement('svg', {
+    viewBox: `0 0 ${width} ${height}`,
+    className: 'scenario-svg',
+    preserveAspectRatio: 'xMidYMid meet',
+    'aria-label': 'Projected cash balance over ~60 days'
+  },
+    React.createElement('defs', null,
+      React.createElement('linearGradient', { id: 'scenarioGrad', x1: '0', y1: '0', x2: '0', y2: '1' },
+        React.createElement('stop', { offset: '0%', stopColor: 'var(--accent2)', stopOpacity: 0.5 }),
+        React.createElement('stop', { offset: '100%', stopColor: 'var(--accent2)', stopOpacity: 0 })
+      )
+    ),
+    React.createElement('path', {
+      key: `area-${polyline}`,
+      d: areaPath,
+      fill: 'url(#scenarioGrad)',
+      opacity: 0.35
+    }),
+    React.createElement('polyline', {
+      key: `line-${polyline}`,
+      points: polyline,
+      fill: 'none',
+      stroke: 'var(--accent2)',
+      strokeWidth: 2.5,
+      strokeLinejoin: 'round',
+      strokeLinecap: 'round',
+      opacity: 0.95
+    }),
+    points.map((p, i) => React.createElement('circle', {
+      key: `${p.label}-${i}-${Math.round(p.value)}`,
+      cx: x(i),
+      cy: y(p.value),
+      r: 3,
+      fill: p.value < 0 ? 'var(--danger)' : 'var(--accent)'
+    }))
+  );
+}
+
+function BusinessSurvivalSimulator({ balance, obligations, receivables }) {
+  const [sliders, setSliders] = useState({
+    supplierDelayDays: 10,
+    marketingSpendChange: 10,
+    inventoryTurnoverChange: 5,
+    salesGrowthChange: 8
+  });
+
+  const applyPreset = (preset) => setSliders(prev => ({ ...prev, ...preset }));
+
+  const scenario = useMemo(() => {
+    const delay = Number(sliders.supplierDelayDays) || 0;
+    const marketing = Number(sliders.marketingSpendChange) || 0;
+    const inventory = Number(sliders.inventoryTurnoverChange) || 0;
+    const sales = Number(sliders.salesGrowthChange) || 0;
+
+    const hasSupplierObligations = obligations.some(o => o.category === 'supplier');
+    const turnoverEffect = Math.min(1.25, Math.max(0.75, 1 - (inventory / 100) * 0.4));
+    const invGlobal = Math.min(1.12, Math.max(0.88, 1 - (inventory / 100) * 0.06));
+    const salesEffect = Math.min(2, Math.max(0.6, 1 + (sales / 100)));
+    const receivableDateShift = Math.round((sales / 100) * -6 + (inventory / 100) * -3);
+
+    const totalOblBase = obligations.reduce((sum, o) => sum + (Number(o.amount) || 0), 0);
+    const balanceN = Number(balance) || 0;
+    const scaleBase = Math.max(totalOblBase, Math.abs(balanceN) * 0.45, 18000);
+
+    const adjustedObligations = obligations.map(o => {
+      const isSupplier = o.category === 'supplier';
+      const applyDelay = hasSupplierObligations ? isSupplier : true;
+      const baseAmount = Number(o.amount) || 0;
+      const inventoryAdjusted = isSupplier
+        ? Math.round(baseAmount * turnoverEffect)
+        : Math.round(baseAmount * invGlobal);
+      return {
+        ...o,
+        amount: Math.max(0, inventoryAdjusted),
+        dueDate: applyDelay ? addDays(new Date(o.dueDate), delay).toISOString().slice(0, 10) : o.dueDate
+      };
+    });
+
+    const adjustedReceivables = receivables.map(r => {
+      const baseAmount = Number(r.amount) || 0;
+      const growthAdjustedAmount = Math.round(baseAmount * salesEffect);
+      return {
+        ...r,
+        amount: Math.max(0, growthAdjustedAmount),
+        expectedDate: addDays(new Date(r.expectedDate), receivableDateShift).toISOString().slice(0, 10)
+      };
+    });
+
+    const projectedInflowBase = Math.max(8000, Math.round(scaleBase * 0.35));
+    const growthProjection = receivables.length === 0
+      ? [{
+          id: 'proj-sales-1',
+          from: 'Projected sales',
+          amount: Math.round(projectedInflowBase * salesEffect),
+          expectedDate: addDays(new Date(), 30).toISOString().slice(0, 10),
+          status: 'projected'
+        }, {
+          id: 'proj-sales-2',
+          from: 'Projected sales',
+          amount: Math.round(projectedInflowBase * salesEffect * 1.05),
+          expectedDate: addDays(new Date(), 60).toISOString().slice(0, 10),
+          status: 'projected'
+        }]
+      : [];
+
+    const scenarioReceivables = [...adjustedReceivables, ...growthProjection];
+
+    const mktIntensity = Math.max(0, marketing) / 100;
+    const marketingOutflows = mktIntensity > 0
+      ? [{
+          id: 'mkt-1',
+          name: 'Marketing push',
+          category: 'other',
+          amount: Math.round(scaleBase * mktIntensity * 0.12),
+          dueDate: addDays(new Date(), 15).toISOString().slice(0, 10)
+        }, {
+          id: 'mkt-2',
+          name: 'Marketing push',
+          category: 'other',
+          amount: Math.round(scaleBase * mktIntensity * 0.12),
+          dueDate: addDays(new Date(), 45).toISOString().slice(0, 10)
+        }]
+      : [];
+
+    const scenarioObligations = [...adjustedObligations, ...marketingOutflows];
+
+    const scenarioTimeline = getProjectedEvents(balance, scenarioObligations, scenarioReceivables);
+
+    const buildDailySeries = (eventTimeline) => {
+      const horizonDays = 60;
+      const start = new Date();
+      const eventMap = {};
+      for (const e of eventTimeline) {
+        if (e.type === 'start') continue;
+        const k = calendarDayKey(e.date);
+        eventMap[k] = (eventMap[k] || 0) + (e.type === 'inflow' ? e.amount : -e.amount);
+      }
+
+      const daily = [];
+      let running = Number(balance) || 0;
+      for (let day = 0; day <= horizonDays; day++) {
+        const targetDate = addDays(start, day);
+        running += eventMap[calendarDayKey(targetDate)] || 0;
+        daily.push({ label: `D${day}`, value: running });
+      }
+
+      return daily.filter((_, idx) => idx % 3 === 0);
+    };
+
+    const points = buildDailySeries(scenarioTimeline);
+
+    const finalBalance = points[points.length - 1]?.value || balance;
+    const minBalance = Math.min(...points.map(p => p.value));
+    const peakBalance = Math.max(...points.map(p => p.value));
+    const negativeDays = scenarioTimeline.filter(t => t.runningBalance < 0).length;
+
+    return { adjustedObligations: scenarioObligations, adjustedReceivables: scenarioReceivables, points, finalBalance, minBalance, peakBalance, negativeDays };
+  }, [
+    balance,
+    obligations,
+    receivables,
+    sliders.supplierDelayDays,
+    sliders.marketingSpendChange,
+    sliders.inventoryTurnoverChange,
+    sliders.salesGrowthChange
+  ]);
+
+  const scenarioChartKey = [
+    sliders.supplierDelayDays,
+    sliders.marketingSpendChange,
+    sliders.inventoryTurnoverChange,
+    sliders.salesGrowthChange,
+    ...scenario.points.map(p => Math.round(p.value))
+  ].join('|');
+
+  return React.createElement('div', { className: 'card section-gap' },
+    React.createElement('div', { className: 'card-title' }, 'Business Survival Simulator'),
+    React.createElement('div', { className: 'sim-grid' },
+      React.createElement('div', null,
+        React.createElement('div', { className: 'sim-control' },
+          React.createElement('label', null, `Delay supplier payment: ${sliders.supplierDelayDays} days`),
+          React.createElement('input', { type: 'range', min: 0, max: 45, step: 1, value: sliders.supplierDelayDays, onChange: e => setSliders(s => ({ ...s, supplierDelayDays: Number(e.target.value) })) })
+        ),
+        React.createElement('div', { className: 'sim-control' },
+          React.createElement('label', null, `Increase marketing spend: ${sliders.marketingSpendChange}%`),
+          React.createElement('input', { type: 'range', min: -20, max: 60, step: 1, value: sliders.marketingSpendChange, onChange: e => setSliders(s => ({ ...s, marketingSpendChange: Number(e.target.value) })) })
+        ),
+        React.createElement('div', { className: 'sim-control' },
+          React.createElement('label', null, `Change inventory turnover: ${sliders.inventoryTurnoverChange}%`),
+          React.createElement('input', { type: 'range', min: -30, max: 40, step: 1, value: sliders.inventoryTurnoverChange, onChange: e => setSliders(s => ({ ...s, inventoryTurnoverChange: Number(e.target.value) })) })
+        ),
+        React.createElement('div', { className: 'sim-control' },
+          React.createElement('label', null, `Adjust sales growth: ${sliders.salesGrowthChange}%`),
+          React.createElement('input', { type: 'range', min: -20, max: 80, step: 1, value: sliders.salesGrowthChange, onChange: e => setSliders(s => ({ ...s, salesGrowthChange: Number(e.target.value) })) })
+        ),
+        React.createElement('div', { className: 'sim-presets' },
+          React.createElement('button', { className: 'btn btn-secondary btn-sm', onClick: () => applyPreset({ supplierDelayDays: 20, marketingSpendChange: 40, inventoryTurnoverChange: -10, salesGrowthChange: 35 }) }, 'Aggressive growth'),
+          React.createElement('button', { className: 'btn btn-secondary btn-sm', onClick: () => applyPreset({ supplierDelayDays: 10, marketingSpendChange: -10, inventoryTurnoverChange: 20, salesGrowthChange: 5 }) }, 'Conservative survival'),
+          React.createElement('button', { className: 'btn btn-secondary btn-sm', onClick: () => applyPreset({ supplierDelayDays: 30, marketingSpendChange: 55, inventoryTurnoverChange: -15, salesGrowthChange: 50 }) }, 'Investor-dependent growth')
+        )
+      ),
+      React.createElement('div', null,
+        React.createElement(ScenarioLineChart, { key: scenarioChartKey, points: scenario.points }),
+        React.createElement('div', { className: 'sim-kpis' },
+          React.createElement('div', null, React.createElement('strong', null, 'Final: '), `₹${Math.round(scenario.finalBalance).toLocaleString()}`),
+          React.createElement('div', null, React.createElement('strong', null, 'Lowest: '), `₹${Math.round(scenario.minBalance).toLocaleString()}`),
+          React.createElement('div', null, React.createElement('strong', null, 'Peak: '), `₹${Math.round(scenario.peakBalance).toLocaleString()}`),
+          React.createElement('div', null, React.createElement('strong', null, 'Negative events: '), String(scenario.negativeDays))
+        )
+      )
+    )
+  );
+}
+
+function CashFlowTimeline({ balance, obligations, receivables }) {
+  const timeline = useMemo(() => getProjectedEvents(balance, obligations, receivables), [balance, obligations, receivables]);
+  return React.createElement('div', { className: 'card section-gap' },
+    React.createElement('div', { className: 'card-title' }, 'Cash Flow Timeline'),
+    React.createElement('div', { className: 'timeline futuristic' },
+      timeline.slice(0, 14).map((event, index) => React.createElement('div', { key: event.id + index, className: 'timeline-item' },
+        React.createElement('div', { className: 'timeline-dot', style: { background: event.type === 'inflow' ? 'var(--accent)' : event.type === 'outflow' ? 'var(--danger)' : 'var(--accent2)' } }),
+        React.createElement('div', { className: 'timeline-content' },
+          React.createElement('div', { className: 'timeline-date' }, event.type === 'start' ? 'Today' : formatDateLabel(event.date)),
+          React.createElement('div', { className: 'timeline-main-row' },
+            React.createElement('span', null, event.label),
+            event.type !== 'start' && React.createElement('span', { className: 'timeline-amount', style: { color: event.type === 'inflow' ? 'var(--accent)' : 'var(--danger)' } },
+              `${event.type === 'inflow' ? '+' : '-'}₹${event.amount.toLocaleString()}`
+            )
+          ),
+          React.createElement('div', { className: 'timeline-balance' }, `Balance: ₹${Math.round(event.runningBalance).toLocaleString()}`)
+        )
+      ))
+    )
+  );
+}
+
+function daysUntilCalendar(iso) {
+  const end = new Date(iso);
+  if (Number.isNaN(end.getTime())) return 0;
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  end.setHours(0, 0, 0, 0);
+  return Math.round((end - start) / 86400000);
+}
+
+/** Round rupee amounts for on-screen copy so we don’t echo exact invoice lines. */
+function roundRupeeForCopy(n) {
+  const x = Math.abs(Number(n) || 0);
+  if (x === 0) return 0;
+  const step = x >= 500000 ? 50000 : x >= 100000 ? 10000 : x >= 25000 ? 5000 : 1000;
+  return Math.round(x / step) * step;
+}
+
+function receivableTimingBucket(iso) {
+  const d = daysUntilCalendar(iso);
+  if (d <= 0) return 'Due now / overdue';
+  if (d <= 7) return 'Within a week';
+  if (d <= 30) return 'Within ~30 days';
+  if (d <= 60) return 'Within ~2 months';
+  return 'Further out';
+}
+
+// ─── REALITY (you finance your customers) ───────────────────────────────────
+function RealityPage({ obligations, receivables }) {
+  const model = useMemo(() => {
+    const INPUT = new Set(['supplier', 'utility']);
+    let inputOb = obligations.filter(o => INPUT.has(o.category));
+    if (inputOb.length === 0) {
+      inputOb = obligations.filter(o => ['supplier', 'utility', 'rent', 'other'].includes(o.category));
+    }
+    if (inputOb.length === 0) inputOb = [...obligations];
+
+    const totalInput = inputOb.reduce((s, o) => s + (Number(o.amount) || 0), 0);
+    const totalAR = receivables.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+
+    const inputDays = inputOb.map(o => daysUntilCalendar(o.dueDate));
+    const recDays = receivables.map(r => daysUntilCalendar(r.expectedDate));
+
+    const avgIn = inputDays.length ? inputDays.reduce((a, b) => a + b, 0) / inputDays.length : 0;
+    const avgRec = recDays.length ? recDays.reduce((a, b) => a + b, 0) / recDays.length : 0;
+    const gapDays =
+      inputDays.length > 0 && recDays.length > 0
+        ? Math.round(avgRec - avgIn)
+        : null;
+
+    const topSupplier = [...inputOb].sort((a, b) => (Number(b.amount) || 0) - (Number(a.amount) || 0))[0] || null;
+    const topRec = [...receivables].sort((a, b) => (Number(b.amount) || 0) - (Number(a.amount) || 0))[0] || null;
+    const sortedRecs = [...receivables].sort((a, b) => (Number(b.amount) || 0) - (Number(a.amount) || 0));
+
+    const overlapFloat = Math.round(Math.min(totalInput || 0, totalAR || 0));
+
+    let narrativeShort = '';
+    let narrativeDetail =
+      'Small businesses often finance their own clients: you pay for raw materials, stock, or suppliers first, then wait weeks for customer invoices to turn into bank balance. Until that cash lands, the gap is your working capital — not the bank’s.';
+
+    if (obligations.length === 0 && receivables.length === 0) {
+      narrativeShort = 'Add obligations and receivables to see your real “client financing” picture in rupees and days.';
+    } else {
+      const topPayRounded = topSupplier ? roundRupeeForCopy(topSupplier.amount) : 0;
+      const topRecRounded = topRec ? roundRupeeForCopy(topRec.amount) : 0;
+      const totalInputR = roundRupeeForCopy(totalInput);
+      const totalARR = roundRupeeForCopy(totalAR);
+
+      const exPay =
+        totalInput > 0
+          ? (topSupplier
+            ? `You have roughly ₹${totalInputR.toLocaleString()} in input-style payables (your largest single line is on the order of ₹${topPayRounded.toLocaleString()})`
+            : `Your cost-side payables total roughly ₹${totalInputR.toLocaleString()}`)
+          : 'As you add supplier-style payables';
+      const exRec =
+        totalAR > 0
+          ? (topRec
+            ? `while about ₹${totalARR.toLocaleString()} is still receivable overall (the biggest open balance is roughly ₹${topRecRounded.toLocaleString()})`
+            : `while roughly ₹${totalARR.toLocaleString()} is still tied up in receivables`)
+          : 'before customer collections fully cover what you’ve already spent';
+      const gapPhrase =
+        gapDays == null
+          ? ' Add both input payables and receivables to see whether customers pay you slower than you pay suppliers.'
+          : gapDays > 3
+            ? ` On average, money from customers is showing up ~${gapDays} days after those input-side payments — so you’re carrying them with your cash.`
+            : gapDays < -3
+              ? ' Collections are, on average, ahead of your big input payments — that helps, but one slow payer can still flip the stress.'
+              : ' Pay-in and pay-out timing is close; small slips on either side hit cash quickly.';
+      narrativeShort = `${exPay}, ${exRec}.${gapPhrase}`;
+    }
+
+    const earlyDiscTop = topRec ? roundRupeeForCopy((Number(topRec.amount) || 0) * 0.02) : 0;
+    const topRecRoundedForCopy = topRec ? roundRupeeForCopy(topRec.amount) : 0;
+
+    const actions = [
+      {
+        title: 'Prioritize collections first',
+        tag: 'Cash in',
+        body:
+          totalAR > 0
+            ? `Roughly ₹${roundRupeeForCopy(totalAR).toLocaleString()} is still outstanding from customers — that cash costs you nothing to “borrow.” Start with your largest open balances first: firm reminders, payment plans, or pausing discretionary delivery until a deposit lands.`
+            : 'Log receivables so PocketCFO can rank who to call first. Until they’re in the app, you’re flying blind on who owes you the most.'
+      },
+      {
+        title: 'Ask customers for money up front',
+        tag: 'Deposits',
+        body: topSupplier
+          ? `Payables on the input side include a largest line on the order of ₹${roundRupeeForCopy(topSupplier.amount).toLocaleString()}. On new orders, quote a deposit or milestone billing so part of the sale is paid before you fund the next round of inputs.`
+          : 'For new work, tie customer deposits or milestones to when you must pay suppliers. That way you’re not the only balance sheet funding the gap.'
+      },
+      {
+        title: 'Try a ~2% early payment discount',
+        tag: '2% / 10',
+        body: topRec
+          ? `On your largest open balance (roughly ₹${topRecRoundedForCopy.toLocaleString()}), a 2% early-pay incentive is on the order of ₹${earlyDiscTop.toLocaleString()} — often cheaper than waiting an extra month or using short-term credit. Example line: “Pay within 10 days, save 2%.”`
+          : 'Early-pay discounts (commonly 1–2% for payment within 10 days) turn receivables into bank cash faster. Compare the discount to your cost of waiting or borrowing.'
+      },
+      {
+        title: 'Align supplier terms with how customers pay you',
+        tag: 'Terms',
+        body:
+          gapDays == null
+            ? 'Once payables and receivables are both in the system, compare supplier due dates with customer payment dates — then negotiate terms or deposits to close any hole.'
+            : gapDays > 5
+              ? `Your data suggests customers pay on a slower timeline than your input costs (~${gapDays} day average gap). Negotiate longer supplier terms, staged payments, or smaller order sizes so outflows line up closer to when clients pay.`
+              : gapDays < -3
+                ? 'You tend to collect before the heaviest supplier dues — good pattern. Still use deposits where margin is thin so one late customer doesn’t strand you.'
+                : 'If customers pay slower than you pay suppliers, stretch vendor terms or bring forward customer cash (deposits, shorter invoice terms). If the gap is small, discipline on both sides still matters.'
+      }
+    ];
+
+    return {
+      totalInput,
+      totalAR,
+      gapDays,
+      topSupplier,
+      topRec,
+      sortedRecs,
+      overlapFloat,
+      narrativeShort,
+      narrativeDetail,
+      actions,
+      hasData: obligations.length > 0 || receivables.length > 0
+    };
+  }, [obligations, receivables]);
+
+  return React.createElement('div', null,
+    React.createElement('div', { className: 'page-header' },
+      React.createElement('div', { className: 'page-title' }, 'Reality'),
+      React.createElement('div', { className: 'page-sub' },
+        'When your cash funds customers before it funds you — and what to do about it')
+    ),
+
+    React.createElement('div', { className: 'card section-gap reality-hero' },
+      React.createElement('div', { className: 'card-title' }, 'The hidden loan to your clients'),
+      React.createElement('div', { className: 'reality-lead' }, model.narrativeShort),
+      React.createElement('p', { className: 'reality-detail' }, model.narrativeDetail),
+      model.overlapFloat > 0 && model.hasData && React.createElement('div', { className: 'reality-float-hint' },
+        React.createElement('span', { className: 'badge badge-warn' }, 'Working capital overlap'),
+        ` On the order of ₹${roundRupeeForCopy(model.overlapFloat).toLocaleString()} sits between what you owe on inputs and what you’re still owed — money in motion, not in your pocket.`)
+    ),
+
+    React.createElement('div', { className: 'grid-3 section-gap' },
+      React.createElement('div', { className: 'stat-card' },
+        React.createElement('div', { className: 'stat-label' }, 'Input-side payables (approx.)'),
+        React.createElement('div', { className: 'stat-value warn' }, '≈ ₹' + roundRupeeForCopy(model.totalInput).toLocaleString()),
+        React.createElement('div', { className: 'stat-sub' }, 'Suppliers, utilities, COGS-style — rounded on this page')
+      ),
+      React.createElement('div', { className: 'stat-card' },
+        React.createElement('div', { className: 'stat-label' }, 'Still in receivables (approx.)'),
+        React.createElement('div', { className: 'stat-value', style: { color: 'var(--accent2)' } }, '≈ ₹' + roundRupeeForCopy(model.totalAR).toLocaleString()),
+        React.createElement('div', { className: 'stat-sub' }, 'Outstanding from customers — see Receivables for exacts')
+      ),
+      React.createElement('div', { className: 'stat-card' },
+        React.createElement('div', { className: 'stat-label' }, 'Timing gap (avg. days)'),
+        React.createElement('div', {
+          className: `stat-value ${
+            model.gapDays == null ? '' : model.gapDays > 5 ? 'red' : model.gapDays < -3 ? 'green' : 'warn'
+          }`
+        }, model.gapDays == null ? '—' : `${model.gapDays > 0 ? '+' : ''}${model.gapDays}`),
+        React.createElement('div', { className: 'stat-sub' },
+          model.gapDays == null
+            ? 'Need receivables and input-style payables to estimate'
+            : 'Positive = you wait longer to collect than to pay inputs (you fund the gap)')
+      )
+    ),
+
+    React.createElement('div', { className: 'card section-gap' },
+      React.createElement('div', { className: 'card-title' }, 'Suggested moves (from your books)'),
+      React.createElement('div', { className: 'reality-actions' },
+        model.actions.map((a, i) =>
+          React.createElement('div', { key: i, className: 'reality-action' },
+            React.createElement('div', { className: 'reality-action-head' },
+              React.createElement('span', { className: 'reality-action-title' }, a.title),
+              React.createElement('span', { className: 'badge badge-blue' }, a.tag)
+            ),
+            React.createElement('p', { className: 'reality-action-body' }, a.body)
+          ))
+      )
+    ),
+
+    model.sortedRecs.length > 0 && React.createElement('div', { className: 'card section-gap' },
+      React.createElement('div', { className: 'card-title' }, 'Collection priority (largest first)'),
+      React.createElement('p', { style: { fontSize: 13, color: 'var(--text2)', marginBottom: 12 } },
+        'Largest balances first — amounts and timing are rounded so this stays a briefing, not a full invoice list. Use Receivables for exact names and figures.'),
+      React.createElement('table', { className: 'table' },
+        React.createElement('thead', null,
+          React.createElement('tr', null,
+            React.createElement('th', null, 'Rank'),
+            React.createElement('th', null, 'Timing'),
+            React.createElement('th', null, 'Approx. balance'),
+            React.createElement('th', null, '')
+          )
+        ),
+        React.createElement('tbody', null,
+          model.sortedRecs.slice(0, 8).map((r, idx) =>
+            React.createElement('tr', { key: r.id || idx },
+              React.createElement('td', null,
+                React.createElement('span', { style: { fontFamily: 'DM Mono', fontSize: 12, color: 'var(--text2)' } }, `#${idx + 1}`)),
+              React.createElement('td', null, receivableTimingBucket(r.expectedDate)),
+              React.createElement('td', null,
+                React.createElement('span', { style: { fontFamily: 'DM Mono', fontSize: 12 } }, '≈ ₹' + roundRupeeForCopy(r.amount).toLocaleString())),
+              React.createElement('td', null,
+                idx === 0
+                  ? React.createElement('span', { className: 'badge badge-warn' }, 'Call first')
+                  : React.createElement('span', { className: 'badge badge-gray' }, 'Next')
+              )
+            ))
+        )
+      )
+    ),
+
+    React.createElement('div', { className: 'reasoning-box section-gap', style: { marginBottom: 0 } },
+      React.createElement('span', { className: 'cot-label' }, 'How to read this'),
+      'PocketCFO uses your obligations (especially supplier- and cost-like lines) and receivables to illustrate the working-capital gap. It is not tax or legal advice — use it to steer conversations with customers and suppliers and to prioritize collections before you add more supplier spend.'
+    )
+  );
+}
+
 // ─── DASHBOARD ────────────────────────────────────────────────────────────────
 function Dashboard({ balance, obligations, receivables }) {
   const prioritized = prioritizeObligations(obligations, balance, receivables);
@@ -408,6 +970,21 @@ function Dashboard({ balance, obligations, receivables }) {
     React.createElement('div', { className: 'page-header' },
       React.createElement('div', { className: 'page-title' }, 'Financial Overview'),
       React.createElement('div', { className: 'page-sub' }, 'Real-time cash position and upcoming obligations')
+    ),
+
+    runway.shortfall > 0 && React.createElement('div', {
+      className: 'section-gap',
+      style: {
+        background: 'rgba(255,71,87,0.08)', border: '1px solid rgba(255,71,87,0.3)',
+        borderRadius: 10, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 12
+      }
+    },
+      React.createElement('span', { style: { fontSize: 20 } }, '⚠'),
+      React.createElement('div', null,
+        React.createElement('div', { style: { fontFamily: 'Syne', fontWeight: 700, color: 'var(--danger)', marginBottom: 2 } }, 'Cash Shortfall Detected'),
+        React.createElement('div', { style: { fontSize: 13, color: 'var(--text2)' } },
+          `₹${runway.shortfall.toLocaleString()} shortfall on "${runway.nextCrisis?.name}". Go to Actions for recommendations.`)
+      )
     ),
 
     React.createElement('div', { className: 'grid-4 section-gap' },
@@ -491,19 +1068,8 @@ function Dashboard({ balance, obligations, receivables }) {
       )
     ),
 
-    runway.shortfall > 0 && React.createElement('div', {
-      style: {
-        background: 'rgba(255,71,87,0.08)', border: '1px solid rgba(255,71,87,0.3)',
-        borderRadius: 10, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 12
-      }
-    },
-      React.createElement('span', { style: { fontSize: 20 } }, '⚠'),
-      React.createElement('div', null,
-        React.createElement('div', { style: { fontFamily: 'Syne', fontWeight: 700, color: 'var(--danger)', marginBottom: 2 } }, 'Cash Shortfall Detected'),
-        React.createElement('div', { style: { fontSize: 13, color: 'var(--text2)' } },
-          `₹${runway.shortfall.toLocaleString()} shortfall on "${runway.nextCrisis?.name}". Go to Actions for recommendations.`)
-      )
-    )
+    React.createElement(BusinessSurvivalSimulator, { balance, obligations, receivables }),
+    React.createElement(CashFlowTimeline, { balance, obligations, receivables })
   );
 }
 
@@ -1777,7 +2343,7 @@ function validateEmail(email) {
 }
 
 // ─── AUTH PAGE ────────────────────────────────────────────────────────────────
-function AuthPage({ onLogin }) {
+function AuthPage({ onLogin, theme, toggleTheme }) {
   const [mode, setMode] = useState('login');
   const [form, setForm] = useState({ email: '', password: '', name: '', age: '', business: '', bankBalance: '' });
   const [errors, setErrors] = useState({});
@@ -1994,6 +2560,14 @@ function AuthPage({ onLogin }) {
     ),
     React.createElement('div', { className: 'auth-right' },
       React.createElement('div', { className: `auth-card${shake ? ' auth-shake' : ''}` },
+        React.createElement('div', { className: 'auth-theme-row' },
+          React.createElement('button', {
+            type: 'button',
+            className: 'auth-theme-chip',
+            onClick: toggleTheme,
+            'aria-label': theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'
+          }, theme === 'dark' ? '☼ Light mode' : '🌙 Dark mode')
+        ),
         React.createElement('div', { className: 'auth-tabs' },
           React.createElement('button', { className: `auth-tab${mode === 'login' ? ' active' : ''}`, onClick: () => switchMode('login') }, 'Sign In'),
           React.createElement('button', { className: `auth-tab${mode === 'signup' ? ' active' : ''}`, onClick: () => switchMode('signup') }, 'Create Account')
@@ -2068,6 +2642,24 @@ function App() {
   const [transactions, setTransactions] = useState([]);
   const [actions, setActions] = useState([]);
   const [toasts, setToasts] = useState([]);
+  const [theme, setTheme] = useState(() => {
+    try {
+      return localStorage.getItem('pocketcfo-theme') === 'light' ? 'light' : 'dark';
+    } catch {
+      return 'dark';
+    }
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    try {
+      localStorage.setItem('pocketcfo-theme', theme);
+    } catch (_) {}
+  }, [theme]);
+
+  const toggleTheme = useCallback(() => {
+    setTheme(t => (t === 'dark' ? 'light' : 'dark'));
+  }, []);
 
   const addToast = useCallback((msg, type = 'success') => {
     const id = Date.now() + Math.random();
@@ -2155,11 +2747,12 @@ function App() {
   }
 
   if (!currentUser) {
-    return React.createElement(AuthPage, { onLogin: handleLogin });
+    return React.createElement(AuthPage, { onLogin: handleLogin, theme, toggleTheme });
   }
 
   const pages = {
     dashboard: React.createElement(Dashboard, { balance, obligations, receivables }),
+    reality: React.createElement(RealityPage, { obligations, receivables }),
     obligations: React.createElement(Obligations, { obligations, setObligations, addToast }),
     receivables: React.createElement(Receivables, { receivables, setReceivables, addToast }),
     transactions: React.createElement(TransactionHistory, { balance, setStartingBankBalance, transactions, setTransactions, setObligations, setReceivables, addToast }),
@@ -2169,7 +2762,7 @@ function App() {
 
   return React.createElement(React.Fragment, null,
     React.createElement('div', { className: 'app' },
-      React.createElement(Sidebar, { page, setPage, apiKey, setApiKey }),
+      React.createElement(Sidebar, { page, setPage, apiKey, setApiKey, theme, toggleTheme }),
       React.createElement('div', { className: 'main' },
         React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: 8, alignItems: 'center', gap: 8, flexWrap: 'wrap' } },
           React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 10 } },
@@ -2204,16 +2797,22 @@ function App() {
                 fontSize: 13,
                 fontFamily: 'DM Mono',
                 color: 'var(--text)',
-                background: 'var(--card)',
+                background: 'var(--surface)',
                 border: '1px solid var(--border)',
                 borderRadius: 8
               },
               title: 'Opening balance at last sign-in ± credits and debits in history'
             }, (Number.isFinite(balance) ? balance : 0).toLocaleString()),
+            React.createElement('button', {
+              type: 'button',
+              className: 'theme-toggle theme-toggle--main',
+              onClick: toggleTheme,
+              'aria-label': theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'
+            }, theme === 'dark' ? '☼ Light' : '🌙 Dark'),
             React.createElement('button', { className: 'btn btn-secondary btn-sm', onClick: handleLogout }, '⎋ Sign Out')
           )
         ),
-        pages[page]
+        (pages[page] || pages.dashboard)
       )
     ),
     React.createElement(ToastContainer, { toasts })
